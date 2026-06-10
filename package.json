@@ -1,0 +1,19 @@
+{
+  "name": "auditsys-ai",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "npm run dev --workspace frontend",
+    "build": "npm run build --workspace frontend",
+    "lint": "npm run lint --workspace frontend",
+    "typecheck": "npm run typecheck --workspace frontend",
+    "api": "uvicorn app.main:app --reload --app-dir backend",
+    "test:api": "pytest backend/app/tests"
+  },
+  "workspaces": [
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}
