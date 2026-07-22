@@ -1,1 +1,1 @@
-"""AI agent orchestration modules."""
+"""LangGraph agent definitions."""

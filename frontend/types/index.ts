@@ -1,1 +1,8 @@
-export type { AuditEvent, DocumentRecord, ReviewItem } from "./audit";
+export type {
+  AuditEvent,
+  AuditLogEntry,
+  DocumentRecord,
+  EvalResult,
+  ReviewItem,
+  ReviewQueueItem,
+} from "./audit";

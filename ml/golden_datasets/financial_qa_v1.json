@@ -1,0 +1,122 @@
+[
+  {
+    "question": "What is the revenue recognition policy for long-term contracts?",
+    "answer": "Revenue from long-term contracts is recognized over time using the percentage-of-completion method, measured by the proportion of costs incurred to total estimated costs.",
+    "contexts": ["Revenue Recognition Policy: For contracts extending beyond 12 months, the entity applies IFRS 15 using the input method based on costs incurred relative to total expected costs."],
+    "ground_truth": "Revenue from long-term contracts is recognized over time using the percentage-of-completion method based on costs incurred."
+  },
+  {
+    "question": "What are the internal controls over financial reporting for procurement?",
+    "answer": "Procurement controls include dual approval for purchases over $10,000, segregation of duties between requisition and payment, and quarterly reconciliation of vendor accounts.",
+    "contexts": ["Internal Controls - Procurement: All purchases exceeding $10,000 require dual authorization. Segregation of duties is maintained between purchase requisition, approval, and payment processing. Vendor accounts are reconciled quarterly."],
+    "ground_truth": "Procurement controls include dual approval for amounts over $10,000, segregation of duties, and quarterly vendor reconciliation."
+  },
+  {
+    "question": "What is the materiality threshold for the 2025 audit engagement?",
+    "answer": "The materiality threshold for the FY2025 audit is set at 5% of pre-tax income, approximately $2.3 million based on projected financials.",
+    "contexts": ["Audit Planning Memo FY2025: Overall materiality is determined at 5% of projected pre-tax income ($46M), yielding a materiality threshold of $2.3M. Performance materiality is set at 75% of overall materiality ($1.725M)."],
+    "ground_truth": "The materiality threshold is 5% of pre-tax income, approximately $2.3 million."
+  },
+  {
+    "question": "How are related party transactions disclosed?",
+    "answer": "Related party transactions are disclosed in Note 24 of the financial statements, including the nature of the relationship, transaction amounts, and outstanding balances at year-end.",
+    "contexts": ["Disclosure Requirements - Related Parties: Per IAS 24, all transactions with related parties must be disclosed including nature of relationship, amount of transactions, outstanding balances, and terms and conditions."],
+    "ground_truth": "Related party transactions are disclosed per IAS 24, including relationship nature, amounts, and outstanding balances."
+  },
+  {
+    "question": "What is the policy for recognizing impairment losses on goodwill?",
+    "answer": "Goodwill is tested for impairment annually and whenever events indicate potential impairment. The entity uses the value-in-use method with a pre-tax discount rate of 9.5%.",
+    "contexts": ["Impairment Policy - Goodwill: Annual impairment testing is performed at the cash-generating unit level. Value-in-use is calculated using discounted cash flow projections (5-year forecast period) with a pre-tax discount rate of 9.5% and a terminal growth rate of 2%."],
+    "ground_truth": "Goodwill is tested annually for impairment using value-in-use with a 9.5% discount rate."
+  },
+  {
+    "question": "What are the key audit matters identified for the current engagement?",
+    "answer": "Key audit matters include revenue recognition on complex contracts, valuation of investment properties, and assessment of provisions for litigation.",
+    "contexts": ["KAM Summary FY2025: 1) Revenue recognition for construction contracts using percentage-of-completion. 2) Fair value measurement of investment property portfolio ($180M). 3) Adequacy of provisions for pending litigation claims ($45M aggregate)."],
+    "ground_truth": "KAMs include revenue recognition on contracts, investment property valuation, and litigation provisions."
+  },
+  {
+    "question": "What is the expected credit loss methodology for trade receivables?",
+    "answer": "Trade receivables use the simplified approach under IFRS 9, applying a provision matrix based on historical loss rates adjusted for forward-looking economic factors.",
+    "contexts": ["ECL Methodology: Trade receivables apply IFRS 9 simplified approach. Provision matrix uses historical default rates by aging bucket (current, 30-day, 60-day, 90-day+) adjusted for GDP growth forecasts and industry-specific factors."],
+    "ground_truth": "Trade receivables use IFRS 9 simplified approach with a provision matrix adjusted for forward-looking factors."
+  },
+  {
+    "question": "What is the entity's policy on lease accounting under IFRS 16?",
+    "answer": "All leases with terms exceeding 12 months are recognized on the balance sheet. Right-of-use assets are depreciated straight-line and lease liabilities are measured at present value using incremental borrowing rate.",
+    "contexts": ["Lease Policy IFRS 16: Leases >12 months are capitalized. ROU assets depreciated on straight-line basis over lease term. Lease liabilities discounted at incremental borrowing rate (currently 4.2%). Short-term and low-value exemptions applied."],
+    "ground_truth": "Leases over 12 months are capitalized with ROU assets depreciated straight-line and liabilities at present value."
+  },
+  {
+    "question": "What sampling methodology is used for accounts payable testing?",
+    "answer": "Accounts payable testing uses monetary unit sampling (MUS) with a confidence level of 95% and expected error rate of 1%, resulting in a sample size of 58 items.",
+    "contexts": ["Sampling Plan - AP: Monetary Unit Sampling applied to AP population of $85M. Confidence level: 95%. Tolerable misstatement: $850K. Expected misstatement rate: 1%. Calculated sample size: 58 items. Stratification by vendor category applied."],
+    "ground_truth": "AP testing uses MUS with 95% confidence, 1% expected error, yielding 58 sample items."
+  },
+  {
+    "question": "How does the entity account for government grants?",
+    "answer": "Government grants are recognized using the income approach when there is reasonable assurance of compliance. Capital grants are deferred and amortized over the useful life of the related asset.",
+    "contexts": ["Government Grants Policy (IAS 20): Income approach applied. Revenue grants recognized in profit/loss when conditions are met. Capital grants deferred as liabilities and recognized over asset useful life. Grant income of $3.2M recognized in FY2025."],
+    "ground_truth": "Government grants use the income approach per IAS 20, with capital grants deferred and amortized."
+  },
+  {
+    "question": "What is the going concern assessment for the audit period?",
+    "answer": "Management has assessed going concern for 12 months from the reporting date. Cash flow forecasts show adequate liquidity with a minimum cash balance of $15M and undrawn facilities of $50M.",
+    "contexts": ["Going Concern Assessment: Management assessment covers 12 months post-reporting date. Stress-tested scenarios show minimum cash of $15M. Undrawn revolving credit facility of $50M available until 2027. Debt covenants all met with headroom of 20%+."],
+    "ground_truth": "Going concern assessed for 12 months showing $15M minimum cash and $50M undrawn facilities."
+  },
+  {
+    "question": "What is the fraud risk assessment for revenue?",
+    "answer": "Revenue is presumed to carry fraud risk per ISA 240. Management override of controls and improper cutoff around period-end are the primary fraud risk factors identified.",
+    "contexts": ["Fraud Risk Assessment: Per ISA 240, presumed fraud risk on revenue. Specific risks: 1) Management override of journal entry controls. 2) Improper revenue cutoff at period-end. 3) Side agreements with customers affecting timing. Mitigating controls: automated three-way match, period-end cutoff testing."],
+    "ground_truth": "Revenue carries presumed fraud risk per ISA 240, with management override and improper cutoff as key risks."
+  },
+  {
+    "question": "What are the disclosure requirements for segment reporting?",
+    "answer": "Operating segments are reported based on the management approach, requiring disclosure of segment revenue, profit/loss, assets, and reconciliation to consolidated totals for each reportable segment.",
+    "contexts": ["Segment Reporting (IFRS 8): Entity reports 4 operating segments based on internal management reports. Required disclosures: segment revenue, operating profit, total assets, capital expenditure, and reconciliation to consolidated figures."],
+    "ground_truth": "Segments are reported using management approach with revenue, profit, assets, and reconciliation disclosures."
+  },
+  {
+    "question": "What is the depreciation policy for property, plant and equipment?",
+    "answer": "PPE is depreciated straight-line over estimated useful lives: buildings 25-40 years, machinery 8-15 years, vehicles 4-6 years, IT equipment 3-5 years. Residual values are reviewed annually.",
+    "contexts": ["PPE Depreciation Policy: Straight-line method applied. Useful lives: Buildings 25-40 yrs, Plant/machinery 8-15 yrs, Vehicles 4-6 yrs, IT equipment 3-5 yrs. Residual values and useful lives reviewed annually. No changes in estimates for FY2025."],
+    "ground_truth": "PPE uses straight-line depreciation with lives ranging from 3-40 years depending on asset class."
+  },
+  {
+    "question": "What is the policy for inventory valuation?",
+    "answer": "Inventory is valued at the lower of cost and net realizable value. Cost is determined using weighted average method. Write-downs for slow-moving items are assessed quarterly.",
+    "contexts": ["Inventory Policy: Valued at lower of cost (weighted average) and NRV. Quarterly assessment of slow-moving/obsolete items. Write-down provision of $1.8M at year-end. Raw materials valued at purchase cost plus directly attributable costs."],
+    "ground_truth": "Inventory at lower of cost (weighted average) and NRV, with quarterly obsolescence assessment."
+  },
+  {
+    "question": "What substantive testing procedures are applied to cash and bank?",
+    "answer": "Cash and bank testing includes direct bank confirmations, reconciliation testing at year-end, review of outstanding items over 30 days, and testing of intercompany transfers in the cut-off period.",
+    "contexts": ["Audit Program - Cash: 1) Obtain direct bank confirmations for all accounts. 2) Test bank reconciliations at year-end. 3) Investigate outstanding reconciling items >30 days. 4) Test intercompany transfers 5 days before/after year-end for proper cutoff. 5) Verify restricted cash disclosures."],
+    "ground_truth": "Cash testing includes bank confirmations, reconciliation testing, outstanding items review, and cutoff testing."
+  },
+  {
+    "question": "How are employee benefit obligations measured?",
+    "answer": "Defined benefit obligations are measured using the projected unit credit method with actuarial valuations. Key assumptions include discount rate of 4.5%, salary growth of 3%, and mortality tables updated annually.",
+    "contexts": ["Employee Benefits (IAS 19): Defined benefit obligations measured via projected unit credit method. Annual actuarial valuation by independent actuary. Assumptions: discount rate 4.5% (AA corporate bonds), salary growth 3%, inflation 2.5%. Mortality tables: country-specific, updated annually."],
+    "ground_truth": "DB obligations use projected unit credit method with 4.5% discount rate and 3% salary growth assumptions."
+  },
+  {
+    "question": "What is the entity's hedging strategy for foreign currency risk?",
+    "answer": "The entity uses forward contracts to hedge 80% of forecast USD and EUR exposures for 12 months. Cash flow hedge accounting is applied under IFRS 9 with effectiveness tested monthly.",
+    "contexts": ["FX Hedging Policy: Forward contracts hedge 80% of forecast USD and EUR exposures on a rolling 12-month basis. IFRS 9 cash flow hedge accounting applied. Effectiveness testing monthly using dollar-offset method. Hedge ratio within 80-125% corridor."],
+    "ground_truth": "80% of USD/EUR exposures hedged with forwards, using IFRS 9 cash flow hedge accounting."
+  },
+  {
+    "question": "What is the auditor's responsibility regarding subsequent events?",
+    "answer": "The auditor is required to perform subsequent events procedures up to the audit report date, including inquiry of management, review of minutes, and examination of post-balance sheet transactions exceeding materiality.",
+    "contexts": ["Subsequent Events (ISA 560): Procedures performed up to audit report date. Include: inquiry of management regarding events, review of board/committee minutes, examination of latest interim financials, review of post-year-end transactions >materiality, legal confirmations."],
+    "ground_truth": "Subsequent events procedures run to the report date including inquiries, minute reviews, and transaction examination."
+  },
+  {
+    "question": "What is the independence assessment for the audit team?",
+    "answer": "Independence is confirmed through annual declarations, rotation of engagement partner (5-year maximum), and prohibited services review. No independence threats were identified for the current engagement.",
+    "contexts": ["Independence Assessment: All team members submitted annual declarations. Engagement partner rotation compliant (year 3 of 5). Prohibited services checklist completed - no conflicts. Fee dependency ratio: 8% of firm revenue (below 15% threshold). No financial interests identified."],
+    "ground_truth": "Independence confirmed via declarations, partner rotation (year 3/5), and prohibited services review with no threats."
+  }
+]

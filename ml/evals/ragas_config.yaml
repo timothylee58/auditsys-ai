@@ -1,0 +1,54 @@
+# RAGAS Evaluation Configuration
+# AuditSys AI — Financial Q&A Evaluation Baselines
+
+evaluation:
+  name: "AuditSys AI RAGAS Evaluation"
+  version: "1.0.0"
+  description: "RAGAS metrics baselines for financial document Q&A"
+
+metrics:
+  faithfulness:
+    description: "Does the answer stick to retrieved context?"
+    baseline: 0.80
+    target: 0.90
+    weight: 0.30
+
+  answer_relevancy:
+    description: "Is the answer relevant to the question?"
+    baseline: 0.80
+    target: 0.90
+    weight: 0.30
+
+  context_recall:
+    description: "Are the right chunks being retrieved?"
+    baseline: 0.75
+    target: 0.85
+    weight: 0.20
+
+  context_precision:
+    description: "Is retrieval precise (low noise)?"
+    baseline: 0.75
+    target: 0.85
+    weight: 0.20
+
+dataset:
+  golden_path: "../golden_datasets/financial_qa_v1.json"
+  examples: 20
+  domain: "financial_audit"
+  categories:
+    - "revenue_recognition"
+    - "internal_controls"
+    - "audit_procedures"
+    - "financial_reporting"
+    - "risk_assessment"
+
+execution:
+  model: "gpt-4o"
+  embedding_model: "text-embedding-3-large"
+  batch_size: 5
+  timeout_seconds: 300
+
+thresholds:
+  pass_all: true  # All metrics must meet baseline to pass CI
+  fail_on_regression: true  # Fail if any metric drops >5% from last run
+  regression_tolerance: 0.05

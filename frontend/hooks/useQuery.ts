@@ -7,8 +7,12 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8
 export interface QueryResult {
   answer: string;
   confidence: number;
-  sources: Array<{ id: string; name: string; excerpt?: string }>;
+  confidence_score?: number;
+  sources: Array<{ id?: string; name?: string; excerpt?: string; document_id?: string; content?: string }>;
+  citations?: Array<{ document_id?: string; content?: string; score?: number }>;
   flagged_for_review: boolean;
+  trace_id?: string;
+  status?: string;
 }
 
 export function useAuditQuery() {
@@ -25,8 +29,32 @@ export function useAuditQuery() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question }),
       });
-      if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-      setResult(await res.json());
+
+      if (res.status === 200) {
+        const data = await res.json();
+        setResult({
+          answer: data.answer,
+          confidence: data.confidence_score ?? data.confidence ?? 0,
+          confidence_score: data.confidence_score,
+          sources: data.citations || data.sources || [],
+          citations: data.citations,
+          flagged_for_review: false,
+          trace_id: data.trace_id,
+          status: data.status,
+        });
+      } else if (res.status === 202) {
+        const data = await res.json();
+        setResult({
+          answer: data.message || "Answer pending compliance review",
+          confidence: 0,
+          sources: [],
+          flagged_for_review: true,
+          status: "pending_review",
+        });
+      } else {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.detail || `Query failed: ${res.status}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
