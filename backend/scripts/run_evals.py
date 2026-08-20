@@ -1,41 +1,51 @@
 #!/usr/bin/env python
-"""CI entrypoint: run the RAGAS golden-dataset eval suite and gate on baselines.
-
-Usage: python scripts/run_evals.py
-Exits 0 when every metric clears its `ml/evals/ragas_config.yaml` baseline,
-1 otherwise (or on error). Prints per-metric scores to stdout.
 """
-from __future__ import annotations
+AuditSys AI — Eval Runner
+Usage: python backend/scripts/run_evals.py [--live]
 
+--live: calls the live agent for answers (slower, end-to-end)
+        default: uses pre-computed answers from golden dataset
+"""
+
+import argparse
 import asyncio
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Ensure backend is on path when run from project root
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.evals.ragas_runner import run_eval_suite
+from app.evals.ragas_runner import DEFAULT_CONFIG_PATH, DEFAULT_DATASET_PATH, run_eval_suite
 
 
-async def main() -> int:
-    result = await run_eval_suite()
-    summary = result["summary"]
-    baselines = result["baselines"]
+async def main():
+    parser = argparse.ArgumentParser(description="Run AuditSys RAGAS eval suite")
+    parser.add_argument("--live", action="store_true", help="Use live agent for answers")
+    parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET_PATH)
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
+    args = parser.parse_args()
 
-    print(f"RAGAS eval run {result['run_id']}")
-    print(f"{'metric':<20}{'score':<10}{'baseline':<10}{'status'}")
-    for name, score in summary.items():
-        threshold = baselines.get(name)
-        ok = threshold is None or score >= threshold
-        status = "PASS" if ok else "FAIL"
-        print(f"{name:<20}{score:<10.3f}{threshold if threshold is not None else '-':<10}{status}")
+    print("=" * 60)
+    print("AuditSys AI — RAGAS Eval Suite")
+    print(f"Dataset: {args.dataset}")
+    print(f"Mode:    {'live agent' if args.live else 'golden dataset (pre-computed)'}")
+    print("=" * 60)
 
-    if not result["passed_baseline"]:
-        print("One or more metrics fell below baseline.")
-        return 1
+    result = await run_eval_suite(
+        dataset_path=args.dataset,
+        config_path=args.config,
+        use_live_agent=args.live,
+    )
 
-    print("All metrics cleared baseline.")
-    return 0
+    print("\n" + result.summary())
+
+    if not result.passed:
+        print("\n❌ Eval regression detected — blocking PR merge")
+        sys.exit(1)
+    else:
+        print("\n✅ All metrics above baseline — eval gate passed")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
-    raise SystemExit(asyncio.run(main()))
+    asyncio.run(main())

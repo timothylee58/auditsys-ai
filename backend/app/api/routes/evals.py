@@ -16,7 +16,17 @@ async def _run_job(job_id: str) -> None:
     _jobs[job_id]["status"] = "running"
     try:
         result = await run_eval_suite()
-        _jobs[job_id] = {"status": "completed", "result": result}
+        _jobs[job_id] = {
+            "status": "completed",
+            "result": {
+                "run_id": result.run_id,
+                "dataset_path": str(result.dataset_path),
+                "scores": result.scores,
+                "baselines": result.baselines,
+                "passed": result.passed,
+                "per_question": result.per_question,
+            },
+        }
     except Exception as exc:  # noqa: BLE001 - surface failure to the poller
         _jobs[job_id] = {"status": "failed", "error": str(exc)}
 
