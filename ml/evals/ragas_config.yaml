@@ -1,0 +1,32 @@
+# RAGAS evaluation configuration for the AuditSys AI RAG agent.
+# Baselines gate CI: `scripts/run_evals.py` exits non-zero if a run scores
+# below these thresholds, so a regression in retrieval or generation quality
+# fails the build instead of shipping silently.
+
+dataset: financial_qa_v1
+dataset_path: ml/golden_datasets/financial_qa_v1.json
+
+metrics:
+  - faithfulness
+  - answer_relevancy
+  - context_recall
+  - context_precision
+
+baselines:
+  faithfulness: 0.80
+  answer_relevancy: 0.75
+  context_recall: 0.70
+  context_precision: 0.70
+
+llm:
+  provider: azure_openai
+  deployment_env_var: AZURE_OPENAI_DEPLOYMENT
+
+embeddings:
+  provider: azure_openai
+  deployment_env_var: AZURE_OPENAI_EMBEDDING_DEPLOYMENT
+
+run:
+  # Fail CI if the mean score for any metric drops below its baseline.
+  fail_under_baseline: true
+  sample_limit: null # null = run the full dataset

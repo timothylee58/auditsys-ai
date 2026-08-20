@@ -1,25 +1,37 @@
-from fastapi import APIRouter
+from datetime import datetime
 
-from app.models.schemas import AuditEvent
+from fastapi import APIRouter, HTTPException, Query
+
+from app.services import audit_service
 
 router = APIRouter(prefix="/audit-log", tags=["audit-log"])
 
 
-@router.get("", response_model=list[AuditEvent])
-def list_audit_events() -> list[AuditEvent]:
-    return [
-        AuditEvent(
-            id="evt_001",
-            actor="system",
-            action="indexed",
-            target="FY2025 procurement controls.pdf",
-            created_at="2026-06-02T14:02:00Z",
-        ),
-        AuditEvent(
-            id="evt_002",
-            actor="reviewer@auditsys.local",
-            action="flagged",
-            target="Vendor onboarding exceptions.xlsx",
-            created_at="2026-06-02T14:21:00Z",
-        ),
-    ]
+@router.get("")
+async def list_audit_events(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    status: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    min_confidence: float | None = Query(None, ge=0, le=1),
+    pii_only: bool = False,
+) -> dict:
+    """Paginated, filterable view over the append-only audit log."""
+    return await audit_service.get_audit_log(
+        page=page,
+        page_size=page_size,
+        status=status,
+        date_from=date_from,
+        date_to=date_to,
+        min_confidence=min_confidence,
+        pii_only=pii_only,
+    )
+
+
+@router.get("/{entry_id}")
+async def get_audit_event(entry_id: str) -> dict:
+    entry = await audit_service.get_audit_entry(entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Audit log entry not found")
+    return entry

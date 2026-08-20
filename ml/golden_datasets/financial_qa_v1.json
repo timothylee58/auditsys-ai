@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "description": "Golden Q&A set for RAGAS evaluation of the AuditSys AI financial/audit RAG agent. ground_truth is the reference answer used for faithfulness/answer_relevancy/context_recall scoring; contexts are populated at eval time from the live retriever unless overridden here.",
+  "items": [
+    {"id": "faq_001", "question": "What is the total revenue reported for the most recent fiscal year?", "ground_truth": "Total revenue for the most recent fiscal year is stated in the income statement of the ingested annual report."},
+    {"id": "faq_002", "question": "What is the company's net income for the current reporting period?", "ground_truth": "Net income for the current reporting period is disclosed on the consolidated income statement."},
+    {"id": "faq_003", "question": "What were the total operating expenses last quarter?", "ground_truth": "Total operating expenses for last quarter are broken out in the operating expense note of the filing."},
+    {"id": "faq_004", "question": "Does the audit report contain a going concern qualification?", "ground_truth": "The going concern status is stated explicitly in the auditor's opinion section of the audit report."},
+    {"id": "faq_005", "question": "What internal control deficiencies were identified in the most recent audit?", "ground_truth": "Identified control deficiencies are listed in the internal controls / management letter section of the audit report."},
+    {"id": "faq_006", "question": "What is the current ratio based on the latest balance sheet?", "ground_truth": "The current ratio is current assets divided by current liabilities, both reported on the latest balance sheet."},
+    {"id": "faq_007", "question": "Who is the engagement partner listed on the audit opinion?", "ground_truth": "The engagement partner's name appears in the signature block of the audit opinion letter."},
+    {"id": "faq_008", "question": "What accounting standard framework was used to prepare the financial statements?", "ground_truth": "The framework (e.g. US GAAP or IFRS) is disclosed in the basis of presentation note."},
+    {"id": "faq_009", "question": "Were there any related-party transactions disclosed in the filing?", "ground_truth": "Related-party transactions, if any, are disclosed in the related-party transactions note."},
+    {"id": "faq_010", "question": "What is the total value of vendor payments flagged for missing dual approval?", "ground_truth": "The total value of flagged vendor payments is summarized in the procurement exceptions report."},
+    {"id": "faq_011", "question": "What is the effective tax rate for the period?", "ground_truth": "The effective tax rate is disclosed in the income tax note as a percentage of pre-tax income."},
+    {"id": "faq_012", "question": "What material weaknesses, if any, were reported in internal control over financial reporting?", "ground_truth": "Material weaknesses are described in the ICFR assessment section of the filing."},
+    {"id": "faq_013", "question": "What is the total long-term debt outstanding at period end?", "ground_truth": "Total long-term debt is reported on the balance sheet and detailed in the debt note."},
+    {"id": "faq_014", "question": "Were any subsequent events disclosed after the balance sheet date?", "ground_truth": "Subsequent events are disclosed in the subsequent events note, if applicable."},
+    {"id": "faq_015", "question": "What is the policy threshold requiring dual approval for procurement transactions?", "ground_truth": "The dual-approval threshold is defined in the procurement policy document."},
+    {"id": "faq_016", "question": "What was the auditor's overall opinion type (unqualified, qualified, adverse, disclaimer)?", "ground_truth": "The opinion type is stated at the top of the auditor's report."},
+    {"id": "faq_017", "question": "What is the gross margin percentage for the most recent fiscal year?", "ground_truth": "Gross margin percentage is gross profit divided by revenue, both on the income statement."},
+    {"id": "faq_018", "question": "Are there any pending litigation matters disclosed in the notes?", "ground_truth": "Pending litigation is disclosed in the commitments and contingencies note."},
+    {"id": "faq_019", "question": "What is the cash and cash equivalents balance at period end?", "ground_truth": "Cash and cash equivalents balance is reported on the balance sheet."},
+    {"id": "faq_020", "question": "What vendor onboarding exceptions were identified and what is their status?", "ground_truth": "Vendor onboarding exceptions and their remediation status are listed in the vendor onboarding exceptions report."}
+  ]
+}

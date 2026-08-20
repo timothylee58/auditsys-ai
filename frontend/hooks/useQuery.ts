@@ -6,27 +6,42 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8
 
 export interface QueryResult {
   answer: string;
-  confidence: number;
-  sources: Array<{ id: string; name: string; excerpt?: string }>;
-  flagged_for_review: boolean;
+  citations: Array<{ document_id?: string; page_number?: number; similarity?: number }>;
+  confidence_score: number;
+  trace_id: string;
+  status: "answered" | "pending_review" | "rejected";
+  session_id: string;
+  review_item_id: string | null;
+}
+
+export interface QueryStatus {
+  status: "answered" | "pending_review" | "rejected";
+  answer: string | null;
+  review_note: string | null;
 }
 
 export function useAuditQuery() {
   const [result, setResult] = useState<QueryResult | null>(null);
+  const [pollStatus, setPollStatus] = useState<QueryStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function runQuery(question: string) {
     setIsLoading(true);
     setError(null);
+    setPollStatus(null);
     try {
       const res = await fetch(`${API_BASE_URL}/query`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question }),
       });
-      if (!res.ok) throw new Error(`Query failed: ${res.status}`);
-      setResult(await res.json());
+      if (!res.ok && res.status !== 202) throw new Error(`Query failed: ${res.status}`);
+      const data = (await res.json()) as QueryResult;
+      setResult(data);
+      if (data.status === "pending_review") {
+        pollForResolution(data.session_id);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -34,5 +49,22 @@ export function useAuditQuery() {
     }
   }
 
-  return { result, isLoading, error, runQuery };
+  function pollForResolution(sessionId: string, attempt = 0) {
+    if (attempt > 60) return; // stop after ~5 minutes at 5s intervals
+    setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/query/status/${sessionId}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as QueryStatus;
+        setPollStatus(data);
+        if (data.status === "pending_review") {
+          pollForResolution(sessionId, attempt + 1);
+        }
+      } catch {
+        // transient network error — the next scheduled poll will retry
+      }
+    }, 5000);
+  }
+
+  return { result, pollStatus, isLoading, error, runQuery };
 }

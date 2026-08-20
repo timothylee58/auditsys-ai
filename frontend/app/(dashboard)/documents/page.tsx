@@ -1,12 +1,12 @@
 import { DocumentTable } from "@/components/features/document-upload/document-table";
-import { Button } from "@/components/ui/button";
+import { DocumentUploader } from "@/components/features/document-upload/DocumentUploader";
 import { apiGet } from "@/lib/api";
-import type { DocumentRecord } from "@/types/audit";
+import type { DocumentPage } from "@/types/audit";
 
 export const dynamic = "force-dynamic";
 
 export default async function DocumentsPage() {
-  const documents = await apiGet<DocumentRecord[]>("/documents");
+  const { documents } = await apiGet<DocumentPage>("/documents");
 
   return (
     <section>
@@ -15,7 +15,9 @@ export default async function DocumentsPage() {
           <p className="text-xs uppercase tracking-[0.24em] text-accent">Evidence vault</p>
           <h2 className="mt-2 font-display text-5xl font-bold">Documents</h2>
         </div>
-        <Button>Upload document</Button>
+      </div>
+      <div className="mt-6">
+        <DocumentUploader />
       </div>
       <div className="mt-6">
         <DocumentTable documents={documents} />
