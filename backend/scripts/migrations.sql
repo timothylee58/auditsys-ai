@@ -111,47 +111,79 @@ create index if not exists eval_results_run_id_idx on eval_results (run_id);
 
 -- ---------------------------------------------------------------------------
 -- document_schema_registry — tracks extracted-field schemas per document type
+--
+-- Also serves app/agents/tool_definitions.py:schema_context, which looks
+-- up per-document column metadata scoped by user_id + source_doc.
 -- ---------------------------------------------------------------------------
 create table if not exists document_schema_registry (
     id uuid primary key default gen_random_uuid(),
     document_type text not null,
     schema_version text not null,
     field_definitions jsonb not null default '{}'::jsonb,
+    user_id uuid,
+    source_doc uuid references documents (id) on delete cascade,
+    table_name text,
+    column_name text,
+    description text,
+    data_type text,
     created_at timestamptz not null default now()
 );
 
 create unique index if not exists document_schema_registry_type_version_idx
     on document_schema_registry (document_type, schema_version);
+create index if not exists document_schema_registry_user_source_idx
+    on document_schema_registry (user_id, source_doc);
 
 -- ---------------------------------------------------------------------------
 -- financial_metrics_view — placeholder, populated once metric extraction ships
+--
+-- Column set matches what app/agents/tool_definitions.py:metric_lookup
+-- selects (metric_name, value, period, unit, source_doc) plus user_id for
+-- the app-layer RLS scope that tool enforces. Still an empty placeholder
+-- (where false) until metric extraction is implemented.
 -- ---------------------------------------------------------------------------
 create or replace view financial_metrics_view as
 select
-    d.id as document_id,
-    d.filename,
-    d.entity,
-    d.doc_date,
+    d.id as source_doc,
+    d.uploaded_by as user_id,
     null::text as metric_name,
-    null::numeric as metric_value,
+    null::numeric as value,
+    null::text as period,
     null::text as unit
 from documents d
 where false; -- empty placeholder until metric extraction is implemented
 
 -- ---------------------------------------------------------------------------
 -- match_document_chunks — pgvector similarity search RPC
+--
+-- Two calling conventions share this one function:
+--   - app/agents/rag_agent.py:retrieve_context calls it unscoped (no
+--     user_id) and reads document_id/content/page_number/similarity.
+--   - app/agents/tool_definitions.py:vector_search calls it user_id-scoped
+--     and reads the CHUNK_ALLOWED_FIELDS names (text/source/page/entity/
+--     doc_date/score) after stripping everything else.
+-- Both column sets are returned so either caller's field access works
+-- without a second function to keep in sync.
 -- ---------------------------------------------------------------------------
 create or replace function match_document_chunks (
     query_embedding vector(3072),
     match_count int default 6,
-    filter_document_ids uuid[] default null
+    filter_document_ids uuid[] default null,
+    user_id uuid default null,
+    match_threshold float default 0.0
 )
 returns table (
     id uuid,
     document_id uuid,
     content text,
     page_number int,
-    similarity float
+    similarity float,
+    text text,
+    source text,
+    page int,
+    entity text,
+    doc_date date,
+    score float
 )
 language sql stable
 as $$
@@ -160,11 +192,19 @@ as $$
         c.document_id,
         c.content,
         c.page_number,
-        1 - (c.embedding <=> query_embedding) as similarity
+        1 - (c.embedding <=> query_embedding) as similarity,
+        c.content as text,
+        d.filename as source,
+        c.page_number as page,
+        d.entity,
+        d.doc_date,
+        1 - (c.embedding <=> query_embedding) as score
     from document_chunks c
     join documents d on d.id = c.document_id
     where d.status = 'indexed'
         and (filter_document_ids is null or c.document_id = any (filter_document_ids))
+        and (match_document_chunks.user_id is null or d.uploaded_by = match_document_chunks.user_id)
+        and (1 - (c.embedding <=> query_embedding)) >= match_threshold
     order by c.embedding <=> query_embedding
     limit match_count;
 $$;
