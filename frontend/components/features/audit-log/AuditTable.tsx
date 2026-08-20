@@ -5,7 +5,7 @@ export function AuditTable({ events }: { events: AuditEvent[] }) {
     <div className="divide-y divide-line rounded-md border border-line">
       {events.map((event) => (
         <div key={event.id} className="p-4 text-sm text-zinc-300">
-          {event.actor} {event.action} {event.target}
+          {event.query} — {event.status}
         </div>
       ))}
     </div>

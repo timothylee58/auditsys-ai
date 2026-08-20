@@ -1,6 +1,5 @@
 import re
 
-
 _BLOCKED_PATTERNS = [
     r"(?i)ignore previous instructions",
     r"(?i)disregard (your|all) (instructions|rules)",

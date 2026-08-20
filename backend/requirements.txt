@@ -6,12 +6,16 @@ httpx>=0.28.1
 supabase>=2.10.0
 redis>=5.0.0
 openai>=1.55.0
-langchain>=0.3.0
-langchain-openai>=0.2.0
-langchain-community>=0.3.0
-langgraph>=0.2.0
+langchain>=0.3.0,<0.4.0
+langchain-openai>=0.2.0,<0.3.0
+langchain-community>=0.3.0,<0.4.0
+langgraph>=0.2.0,<0.3.0
 langfuse>=2.0.0
-ragas>=0.2.0
+# ragas>=0.3 imports langchain_community.chat_models.vertexai, which was
+# removed from langchain-community 0.4+; pin below that until ragas drops
+# the dependency (tracked upstream) or we bump the whole langchain family.
+ragas>=0.2.0,<0.3.0
+pyyaml>=6.0.0
 presidio-analyzer>=2.2.0
 presidio-anonymizer>=2.2.0
 pypdf>=4.0.0

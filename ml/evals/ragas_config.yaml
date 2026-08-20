@@ -1,0 +1,19 @@
+# AuditSys AI — RAGAS Evaluation Baselines
+# CI gate: PR is blocked if any metric drops below these values
+# Update after each intentional improvement to the RAG pipeline
+
+baselines:
+  faithfulness: 0.80        # Answer claims grounded in retrieved context
+  answer_relevancy: 0.75    # Answer addresses the question asked
+  context_recall: 0.70      # Ground truth covered by retrieved chunks
+
+# Dataset
+dataset:
+  path: ml/golden_datasets/financial_qa_v1.json
+  min_samples: 20           # Fail if dataset has fewer samples
+
+# Reporting
+reporting:
+  save_results: true
+  results_path: ml/evals/results/
+  notify_on_failure: true   # Hook into GitHub Actions step summary

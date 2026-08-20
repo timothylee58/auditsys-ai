@@ -6,12 +6,15 @@ import { useAuditQuery } from "@/hooks/useQuery";
 
 export default function QueryPage() {
   const [question, setQuestion] = useState("");
-  const { result, isLoading, error, runQuery } = useAuditQuery();
+  const { result, pollStatus, isLoading, error, runQuery } = useAuditQuery();
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (question.trim()) runQuery(question.trim());
   }
+
+  const isPending = result?.status === "pending_review" && pollStatus?.status !== "answered" && pollStatus?.status !== "rejected";
+  const displayAnswer = pollStatus?.answer ?? result?.answer;
 
   return (
     <section>
@@ -29,6 +32,7 @@ export default function QueryPage() {
           className="mt-3 min-h-40 w-full rounded-md border border-line bg-ink p-4 text-zinc-100 outline-none focus:border-accent"
           placeholder="Find policy exceptions with source evidence..."
         />
+        <div className="mt-1 text-right text-xs text-zinc-500">{question.length}/2000</div>
         <div className="mt-4 flex justify-end">
           <Button type="submit" disabled={isLoading || !question.trim()}>
             {isLoading ? "Running…" : "Run query"}
@@ -42,32 +46,41 @@ export default function QueryPage() {
 
       {result && (
         <div className="mt-6 space-y-4">
-          {result.flagged_for_review && (
+          {isPending && (
             <p className="rounded-md border border-yellow-700 bg-yellow-950/40 p-3 text-sm text-yellow-400">
-              Low confidence — flagged for human review
+              Your answer is being reviewed by our compliance team.
             </p>
           )}
-          <article className="rounded-md border border-line bg-panel p-5">
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Answer</p>
-              <span className="text-xs text-zinc-400">
-                Confidence{" "}
-                <span className={result.confidence >= 0.75 ? "text-accent" : "text-yellow-400"}>
-                  {Math.round(result.confidence * 100)}%
+          {pollStatus?.status === "rejected" && (
+            <p className="rounded-md border border-red-800 bg-red-950/40 p-3 text-sm text-red-400">
+              This answer was rejected on review. {pollStatus.review_note}
+            </p>
+          )}
+          {!isPending && pollStatus?.status !== "rejected" && (
+            <article className="rounded-md border border-line bg-panel p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Answer</p>
+                <span className="text-xs text-zinc-400">
+                  Confidence{" "}
+                  <span className={result.confidence_score >= 0.75 ? "text-accent" : "text-yellow-400"}>
+                    {Math.round(result.confidence_score * 100)}%
+                  </span>
                 </span>
-              </span>
-            </div>
-            <p className="mt-3 text-sm leading-7 text-zinc-200">{result.answer}</p>
-          </article>
+              </div>
+              <p className="mt-3 text-sm leading-7 text-zinc-200">{displayAnswer}</p>
+            </article>
+          )}
 
-          {result.sources.length > 0 && (
+          {result.citations.length > 0 && (
             <div>
               <p className="mb-2 text-xs uppercase tracking-[0.18em] text-zinc-500">Sources</p>
               <ul className="space-y-2">
-                {result.sources.map((src) => (
-                  <li key={src.id} className="rounded-md border border-line bg-panel/60 p-3 text-sm text-zinc-300">
-                    {src.name}
-                    {src.excerpt && <p className="mt-1 text-xs text-zinc-500">{src.excerpt}</p>}
+                {result.citations.map((src, i) => (
+                  <li key={`${src.document_id}-${i}`} className="rounded-md border border-line bg-panel/60 p-3 text-sm text-zinc-300">
+                    Document {src.document_id?.slice(0, 8)} · page {src.page_number ?? "—"}
+                    {typeof src.similarity === "number" && (
+                      <span className="ml-2 text-xs text-zinc-500">{Math.round(src.similarity * 100)}% match</span>
+                    )}
                   </li>
                 ))}
               </ul>
