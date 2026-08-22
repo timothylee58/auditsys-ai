@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, File, Form, Header, HTTPException, Query, UploadFile, status
 
 from app.services import ingestion_service
 
@@ -8,7 +8,12 @@ MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024  # 20MB
 
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
-async def upload_document(file: UploadFile = File(...)) -> dict:
+async def upload_document(
+    file: UploadFile = File(...),
+    user_id: str = Header(..., alias="X-User-ID"),
+    entity: str | None = Form(default=None),
+    doc_date: str | None = Form(default=None),
+) -> dict:
     """Upload a PDF for ingestion: parse, chunk, embed, and index it."""
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
@@ -18,8 +23,11 @@ async def upload_document(file: UploadFile = File(...)) -> dict:
         raise HTTPException(status_code=413, detail="File exceeds the 20MB upload limit")
 
     result = await ingestion_service.ingest_document(
-        filename=file.filename or "document.pdf",
         file_bytes=file_bytes,
+        filename=file.filename or "document.pdf",
+        user_id=user_id,
+        entity=entity,
+        doc_date=doc_date,
     )
     return {
         "document_id": result.document_id,
@@ -32,7 +40,9 @@ async def upload_document(file: UploadFile = File(...)) -> dict:
 
 
 @router.get("")
-async def list_documents(page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100)) -> dict:
+async def list_documents(
+    page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100)
+) -> dict:
     """List the caller's indexed documents, newest first."""
     return await ingestion_service.list_documents(page=page, page_size=page_size)
 
