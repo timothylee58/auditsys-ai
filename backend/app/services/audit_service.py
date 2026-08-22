@@ -96,8 +96,6 @@ async def get_audit_log(
         supabase.table("audit_log")
         .select("*", count="exact")
         .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .range(offset, offset + page_size - 1)
     )
 
     if filters.status:
@@ -112,6 +110,8 @@ async def get_audit_log(
         query = query.lte("confidence_score", filters.max_confidence)
     if filters.pii_only:
         query = query.eq("pii_detected", True)
+
+    query = query.order("created_at", desc=True).range(offset, offset + page_size - 1)
 
     response = await query.execute()
 
@@ -141,6 +141,48 @@ async def get_audit_entry(entry_id: str, user_id: str) -> AuditLogEntry | None:
     if not response.data:
         return None
     return AuditLogEntry(**response.data)
+
+
+
+
+# -- Backward compatibility with query_service.py ---------------------------------
+
+
+async def record_query(
+    *,
+    session_id: str,
+    user_id: str | None,
+    query: str,
+    answer: str | None,
+    citations: list[dict],
+    confidence_score: float,
+    prompt_version: str,
+    model_name: str,
+    trace_id: str,
+    status: str,
+    review_item_id: str | None = None,
+    pii_detected: bool = False,
+    validation_passed: bool = True,
+    validation_errors: list[str] | None = None,
+) -> dict[str, Any]:
+    """Legacy wrapper for query_service.py compatibility."""
+    entry_id = await write_audit_entry(
+        session_id=session_id,
+        user_id=user_id or "",
+        query=query,
+        answer=answer,
+        citations=citations,
+        confidence_score=confidence_score,
+        prompt_version=prompt_version,
+        model_name=model_name,
+        trace_id=trace_id,
+        status=status,
+        review_item_id=review_item_id,
+        pii_detected=pii_detected,
+        validation_passed=validation_passed,
+        validation_errors=validation_errors,
+    )
+    return {"id": entry_id}
 
 
 # -- Supabase migration (reference) ------------------------------------------------

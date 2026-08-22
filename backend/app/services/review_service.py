@@ -273,3 +273,31 @@ async def _log_review_action(
         status=f"review_{action}",
         review_item_id=item_id,
     )
+
+
+# -- Backward compatibility with query_service.py ---------------------------------
+
+
+async def create_review_item(
+    *,
+    session_id: str,
+    user_id: str | None,
+    query: str,
+    draft_answer: str,
+    citations: list[dict],
+    confidence_score: float,
+) -> dict[str, Any]:
+    """Legacy wrapper: creates a review item and returns the raw row dict."""
+    supabase = get_supabase()
+    row = {
+        "session_id": session_id,
+        "user_id": user_id,
+        "query": query,
+        "draft_answer": draft_answer,
+        "citations": citations,
+        "confidence_score": confidence_score,
+        "status": "pending",
+    }
+    response = await supabase.table("review_queue").insert(row).execute()
+    return response.data[0] if response.data else row
+
