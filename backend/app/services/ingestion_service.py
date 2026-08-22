@@ -12,6 +12,13 @@ Design decisions:
   - Supabase RPC for batch upsert -- atomic, no partial inserts
   - Idempotent: re-uploading same file replaces existing chunks
     (matched on content_hash + user_id)
+  - Duplicate detection: if a document with the same content_hash
+    and user_id already exists in "ready" status, return early
+    without re-embedding (cost optimization)
+
+# TODO: Redis embedding cache could be re-added for cost optimization.
+# Repeated chunks (boilerplate in audit reports) currently incur a fresh
+# Azure OpenAI call each time. See previous embedding_service.get_embedding.
 """
 
 from __future__ import annotations
@@ -60,6 +67,25 @@ async def ingest_document(
         IngestionResult with document_id and chunk count
     """
     content_hash = _hash_content(file_bytes)
+
+    # Fast path: if document with same content already exists and is ready, skip re-embedding
+    existing = await _find_existing_document(content_hash, user_id)
+    if existing is not None:
+        logger.info(
+            "duplicate_document_skipped content_hash={} user_id={} existing_id={}",
+            content_hash,
+            user_id,
+            existing["id"],
+        )
+        return IngestionResult(
+            document_id=existing["id"],
+            filename=existing["filename"],
+            chunk_count=existing["chunk_count"],
+            page_count=existing.get("page_count", 0),
+            content_hash=content_hash,
+            status="duplicate",
+        )
+
     document_id = str(uuid.uuid4())
 
     # 1. Extract text per page (preserves page numbers for citations)
@@ -83,17 +109,28 @@ async def ingest_document(
         chunk_count=len(chunks),
     )
 
-    # 4. Generate embeddings in batches (Azure OpenAI rate limit aware)
-    embeddings = await _embed_chunks(chunks)
+    # 4-5. Embed and store with failure recovery
+    try:
+        # 4. Generate embeddings in batches (Azure OpenAI rate limit aware)
+        embeddings = await _embed_chunks(chunks)
 
-    # 5. Upsert chunks + vectors into pgvector
-    await _store_chunks(
-        document_id=document_id,
-        user_id=user_id,
-        chunks=chunks,
-        embeddings=embeddings,
-        content_hash=content_hash,
-    )
+        # 5. Upsert chunks + vectors into pgvector
+        await _store_chunks(
+            document_id=document_id,
+            user_id=user_id,
+            chunks=chunks,
+            embeddings=embeddings,
+            content_hash=content_hash,
+        )
+    except Exception as exc:
+        logger.error(
+            "ingestion_failed document_id={} filename={} error={}",
+            document_id,
+            filename,
+            str(exc),
+        )
+        await _mark_document_failed(document_id)
+        raise
 
     return IngestionResult(
         document_id=document_id,
@@ -276,16 +313,52 @@ def _hash_content(file_bytes: bytes) -> str:
     return hashlib.sha256(file_bytes).hexdigest()
 
 
+async def _find_existing_document(content_hash: str, user_id: str) -> dict | None:
+    """Check if a document with the same content_hash and user_id already exists as ready."""
+    supabase = await get_async_supabase()
+    result = await (
+        supabase.table("documents")
+        .select("id, filename, chunk_count, page_count")
+        .eq("content_hash", content_hash)
+        .eq("user_id", user_id)
+        .eq("status", "ready")
+        .limit(1)
+        .execute()
+    )
+    if result.data:
+        return result.data[0]
+    return None
+
+
+async def _mark_document_failed(document_id: str) -> None:
+    """Mark a document as failed after an error during embedding/storage."""
+    try:
+        supabase = await get_async_supabase()
+        await (
+            supabase.table("documents")
+            .update({"status": "failed"})
+            .eq("id", document_id)
+            .execute()
+        )
+    except Exception as mark_exc:
+        logger.error(
+            "failed_to_mark_document_failed document_id={} error={}",
+            document_id,
+            str(mark_exc),
+        )
+
+
 # -- Existing API functions (preserved for documents router) --------------------
 
-async def list_documents(*, page: int = 1, page_size: int = 25) -> dict:
-    """List indexed documents, newest first, with pagination."""
+async def list_documents(*, user_id: str, page: int = 1, page_size: int = 25) -> dict:
+    """List indexed documents for a specific user, newest first, with pagination."""
     client = get_supabase()
     start = (page - 1) * page_size
     end = start + page_size - 1
     result = (
         client.table("documents")
         .select("*", count="exact")
+        .eq("user_id", user_id)
         .neq("status", "deleted")
         .order("created_at", desc=True)
         .range(start, end)
@@ -301,9 +374,23 @@ async def list_documents(*, page: int = 1, page_size: int = 25) -> dict:
     }
 
 
-async def soft_delete_document(document_id: str) -> None:
-    """Soft delete a document: marks it deleted and removes its chunks."""
+async def soft_delete_document(document_id: str, user_id: str) -> None:
+    """Soft delete a document: verifies ownership, marks it deleted, removes chunks."""
     client = get_supabase()
+
+    # Verify ownership before deletion
+    doc_result = (
+        client.table("documents")
+        .select("id, user_id")
+        .eq("id", document_id)
+        .limit(1)
+        .execute()
+    )
+    if not doc_result.data:
+        raise ValueError(f"Document {document_id} not found")
+    if doc_result.data[0]["user_id"] != user_id:
+        raise PermissionError(f"User {user_id} does not own document {document_id}")
+
     client.table("document_chunks").delete().eq("document_id", document_id).execute()
     client.table("documents").update({"status": "deleted"}).eq("id", document_id).execute()
-    logger.info("document_soft_deleted document_id={}", document_id)
+    logger.info("document_soft_deleted document_id={} user_id={}", document_id, user_id)

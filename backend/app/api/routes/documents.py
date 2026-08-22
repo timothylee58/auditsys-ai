@@ -6,6 +6,10 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024  # 20MB
 
+# TODO: Auth middleware is needed to validate the X-User-ID header (e.g. JWT
+# verification). Currently the header is trusted without verification. This is
+# out of scope for the ingestion pipeline feature.
+
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def upload_document(
@@ -41,13 +45,23 @@ async def upload_document(
 
 @router.get("")
 async def list_documents(
-    page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100)
+    user_id: str = Header(..., alias="X-User-ID"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
 ) -> dict:
     """List the caller's indexed documents, newest first."""
-    return await ingestion_service.list_documents(page=page, page_size=page_size)
+    return await ingestion_service.list_documents(user_id=user_id, page=page, page_size=page_size)
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_document(document_id: str) -> None:
-    """Soft delete a document: marks it deleted and removes its chunks."""
-    await ingestion_service.soft_delete_document(document_id)
+async def delete_document(
+    document_id: str,
+    user_id: str = Header(..., alias="X-User-ID"),
+) -> None:
+    """Soft delete a document: verifies ownership, marks it deleted, removes chunks."""
+    try:
+        await ingestion_service.soft_delete_document(document_id, user_id=user_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Document not found")
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this document")

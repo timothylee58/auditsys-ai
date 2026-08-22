@@ -21,6 +21,9 @@ async def get_async_supabase() -> Any:
 
     Uses supabase-py v2.10+ async client via `acreate_client`.
     """
+    # TODO: Add a reset mechanism (e.g. reset_async_supabase()) for test isolation
+    # and graceful reconnection after transient failures. Currently the module-global
+    # cache has no way to be cleared without reloading the module.
     global _async_client
     if _async_client is None:
         if not settings.supabase_url or not settings.supabase_service_key:
