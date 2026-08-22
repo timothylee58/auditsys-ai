@@ -33,7 +33,7 @@ from langchain_openai import AzureOpenAIEmbeddings
 from loguru import logger
 from pypdf import PdfReader
 
-from app.core.database import get_async_supabase, get_supabase
+from app.core.database import get_async_supabase
 from app.schemas.document import DocumentMetadata, IngestionResult  # noqa: F401
 
 
@@ -245,6 +245,23 @@ async def _upsert_document_record(
 ) -> None:
     supabase = await get_async_supabase()
 
+    # Clean up chunks from any prior failed attempt for this content_hash + user_id
+    stale_docs = await (
+        supabase.table("documents")
+        .select("id")
+        .eq("content_hash", content_hash)
+        .eq("user_id", user_id)
+        .eq("status", "failed")
+        .execute()
+    )
+    for stale_doc in stale_docs.data or []:
+        await (
+            supabase.table("document_chunks")
+            .delete()
+            .eq("document_id", stale_doc["id"])
+            .execute()
+        )
+
     await supabase.table("documents").upsert(
         {
             "id": document_id,
@@ -331,9 +348,16 @@ async def _find_existing_document(content_hash: str, user_id: str) -> dict | Non
 
 
 async def _mark_document_failed(document_id: str) -> None:
-    """Mark a document as failed after an error during embedding/storage."""
+    """Mark a document as failed and clean up any partially-written chunks."""
     try:
         supabase = await get_async_supabase()
+        # Clean up any partially-written chunks before marking failed
+        await (
+            supabase.table("document_chunks")
+            .delete()
+            .eq("document_id", document_id)
+            .execute()
+        )
         await (
             supabase.table("documents")
             .update({"status": "failed"})
@@ -352,10 +376,10 @@ async def _mark_document_failed(document_id: str) -> None:
 
 async def list_documents(*, user_id: str, page: int = 1, page_size: int = 25) -> dict:
     """List indexed documents for a specific user, newest first, with pagination."""
-    client = get_supabase()
+    client = await get_async_supabase()
     start = (page - 1) * page_size
     end = start + page_size - 1
-    result = (
+    result = await (
         client.table("documents")
         .select("*", count="exact")
         .eq("user_id", user_id)
@@ -376,10 +400,10 @@ async def list_documents(*, user_id: str, page: int = 1, page_size: int = 25) ->
 
 async def soft_delete_document(document_id: str, user_id: str) -> None:
     """Soft delete a document: verifies ownership, marks it deleted, removes chunks."""
-    client = get_supabase()
+    client = await get_async_supabase()
 
     # Verify ownership before deletion
-    doc_result = (
+    doc_result = await (
         client.table("documents")
         .select("id, user_id")
         .eq("id", document_id)
@@ -391,6 +415,6 @@ async def soft_delete_document(document_id: str, user_id: str) -> None:
     if doc_result.data[0]["user_id"] != user_id:
         raise PermissionError(f"User {user_id} does not own document {document_id}")
 
-    client.table("document_chunks").delete().eq("document_id", document_id).execute()
-    client.table("documents").update({"status": "deleted"}).eq("id", document_id).execute()
+    await client.table("document_chunks").delete().eq("document_id", document_id).execute()
+    await client.table("documents").update({"status": "deleted"}).eq("id", document_id).execute()
     logger.info("document_soft_deleted document_id={} user_id={}", document_id, user_id)
