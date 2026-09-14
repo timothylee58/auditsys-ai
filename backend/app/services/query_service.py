@@ -35,12 +35,18 @@ async def run_query(
     if cached is not None:
         logger.info("query_cache_hit session_id={}", session_id)
         answer, citations, confidence = cached["answer"], cached["citations"], cached["confidence"]
+        validation_passed = cached.get("validation_passed", True)
+        validation_errors = cached.get("validation_errors", [])
+        pii_detected = cached.get("pii_detected", False)
         passes_gate = True
     else:
         result = await run_agent(question)
         answer = result.get("answer", "")
         citations = result.get("citations", [])
         confidence = float(result.get("confidence_score", 0.0))
+        validation_passed = result.get("validation_passed", True)
+        validation_errors = result.get("validation_errors", [])
+        pii_detected = result.get("pii_detected", False)
         passes_gate = result.get("passes_confidence_gate", confidence >= settings.confidence_threshold)
 
     review_item_id: str | None = None
@@ -59,7 +65,15 @@ async def run_query(
         review_item_id = review_item.get("id")
         status = "pending_review"
     elif cached is None:
-        await _set_cached(question, answer=answer, citations=citations, confidence=confidence)
+        await _set_cached(
+            question,
+            answer=answer,
+            citations=citations,
+            confidence=confidence,
+            validation_passed=validation_passed,
+            validation_errors=validation_errors,
+            pii_detected=pii_detected,
+        )
 
     await audit_service.record_query(
         session_id=session_id,
@@ -73,6 +87,9 @@ async def run_query(
         trace_id=trace_id,
         status=status,
         review_item_id=review_item_id,
+        pii_detected=pii_detected,
+        validation_passed=validation_passed,
+        validation_errors=validation_errors,
     )
 
     return QueryResult(
@@ -95,10 +112,27 @@ async def _get_cached(question: str) -> dict | None:
         return None
 
 
-async def _set_cached(question: str, *, answer: str, citations: list[dict], confidence: float) -> None:
+async def _set_cached(
+    question: str,
+    *,
+    answer: str,
+    citations: list[dict],
+    confidence: float,
+    validation_passed: bool,
+    validation_errors: list[str],
+    pii_detected: bool,
+) -> None:
     try:
         await set_cached_answer(
-            question, {"answer": answer, "citations": citations, "confidence": confidence}
+            question,
+            {
+                "answer": answer,
+                "citations": citations,
+                "confidence": confidence,
+                "validation_passed": validation_passed,
+                "validation_errors": validation_errors,
+                "pii_detected": pii_detected,
+            },
         )
     except Exception as exc:  # noqa: BLE001 - cache is best-effort, never blocks a query
         logger.debug("query_cache_write_failed error={}", exc)

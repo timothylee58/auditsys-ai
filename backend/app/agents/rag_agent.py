@@ -10,7 +10,7 @@ from app.core.database import get_supabase
 from app.core.settings import settings
 from app.guardrails.confidence_gate import confidence_gate
 from app.guardrails.output_validator import validate_output
-from app.guardrails.pii_detector import redact_pii
+from app.guardrails.pii_detector import scan_pii
 from app.services.embedding_service import get_embedding
 
 MATCH_COUNT = 6
@@ -33,6 +33,9 @@ class AgentState(TypedDict, total=False):
     citations: list[dict]
     confidence_score: float
     error: str | None
+    validation_passed: bool
+    validation_errors: list[str]
+    pii_detected: bool
 
 
 async def retrieve_context(state: AgentState) -> AgentState:
@@ -119,13 +122,27 @@ async def synthesise_answer(state: AgentState) -> AgentState:
 
 
 async def validate_output_node(state: AgentState) -> AgentState:
-    """Guardrails + confidence gate node."""
+    """Guardrails node: schema-leak/injection validation, then PII scan."""
     logger.info("node=validate_output")
     answer = state.get("answer", "")
-    cleaned = validate_output(answer)
-    if settings.presidio_enabled:
-        cleaned = redact_pii(cleaned)
-    return {**state, "answer": cleaned}
+
+    validation = await validate_output(answer)
+    cleaned = validation.cleaned_text or answer
+
+    pii = await scan_pii(cleaned)
+    if pii.has_pii:
+        cleaned = pii.anonymised_text
+
+    if not validation.passed:
+        logger.warning("output_validation_failed errors={}", validation.errors)
+
+    return {
+        **state,
+        "answer": cleaned,
+        "validation_passed": validation.passed,
+        "validation_errors": validation.errors,
+        "pii_detected": pii.has_pii,
+    }
 
 
 def build_graph():
