@@ -17,6 +17,7 @@ dist/
 build/
 coverage/
 *.pyc
+*.egg-info/
 *.log
 *.tsbuildinfo
 local.settings.json
