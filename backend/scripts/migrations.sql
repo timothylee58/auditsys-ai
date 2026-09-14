@@ -39,8 +39,14 @@ create table if not exists document_chunks (
 );
 
 create index if not exists document_chunks_document_id_idx on document_chunks (document_id);
+
+-- text-embedding-3-large is 3072-dim, above pgvector's 2000-dim cap for
+-- indexing the native `vector` type (ivfflat and hnsw alike). Index a
+-- halfvec cast instead (pgvector >=0.7 supports halfvec up to 4000 dims);
+-- match_document_chunks casts query_embedding the same way so the planner
+-- can use this index.
 create index if not exists document_chunks_embedding_idx
-    on document_chunks using ivfflat (embedding vector_cosine_ops) with (lists = 100);
+    on document_chunks using hnsw ((embedding::halfvec(3072)) halfvec_cosine_ops);
 
 -- ---------------------------------------------------------------------------
 -- audit_log (append-only)
@@ -142,7 +148,9 @@ create index if not exists document_schema_registry_user_source_idx
 -- the app-layer RLS scope that tool enforces. Still an empty placeholder
 -- (where false) until metric extraction is implemented.
 -- ---------------------------------------------------------------------------
-create or replace view financial_metrics_view as
+create or replace view financial_metrics_view
+    with (security_invoker = true) -- respect the querying role's RLS, not the view creator's
+as
 select
     d.id as source_doc,
     d.uploaded_by as user_id,
@@ -186,26 +194,27 @@ returns table (
     score float
 )
 language sql stable
+set search_path = public, extensions -- pin against search_path hijacking
 as $$
     select
         c.id,
         c.document_id,
         c.content,
         c.page_number,
-        1 - (c.embedding <=> query_embedding) as similarity,
+        1 - (c.embedding::halfvec(3072) <=> query_embedding::halfvec(3072)) as similarity,
         c.content as text,
         d.filename as source,
         c.page_number as page,
         d.entity,
         d.doc_date,
-        1 - (c.embedding <=> query_embedding) as score
+        1 - (c.embedding::halfvec(3072) <=> query_embedding::halfvec(3072)) as score
     from document_chunks c
     join documents d on d.id = c.document_id
     where d.status = 'indexed'
         and (filter_document_ids is null or c.document_id = any (filter_document_ids))
         and (match_document_chunks.user_id is null or d.uploaded_by = match_document_chunks.user_id)
-        and (1 - (c.embedding <=> query_embedding)) >= match_threshold
-    order by c.embedding <=> query_embedding
+        and (1 - (c.embedding::halfvec(3072) <=> query_embedding::halfvec(3072))) >= match_threshold
+    order by c.embedding::halfvec(3072) <=> query_embedding::halfvec(3072)
     limit match_count;
 $$;
 

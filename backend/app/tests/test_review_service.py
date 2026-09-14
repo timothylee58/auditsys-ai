@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.schemas.review import (
-    ReviewAction,
     ReviewItem,
     ReviewItemList,
     ReviewOverrideRequest,
 )
 from app.services import review_service
-
 
 # -- Helpers -------------------------------------------------------------------
 
@@ -60,7 +58,7 @@ def _sample_review_row(
         "reviewer_action": None,
         "override_answer": None,
         "reviewer_notes": None,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -152,9 +150,11 @@ async def test_approve_review_item_success():
 async def test_approve_review_item_already_reviewed():
     chain = _make_chain_mock(response_data=[])  # empty = not found/already reviewed
 
-    with patch("app.services.review_service.get_supabase", return_value=chain):
-        with pytest.raises(ValueError, match="not found or already reviewed"):
-            await review_service.approve_review_item("item-1", "reviewer-1")
+    with (
+        patch("app.services.review_service.get_supabase", return_value=chain),
+        pytest.raises(ValueError, match="not found or already reviewed"),
+    ):
+        await review_service.approve_review_item("item-1", "reviewer-1")
 
 
 # -- Tests: reject_review_item --------------------------------------------------
@@ -185,11 +185,11 @@ async def test_reject_review_item_success():
 async def test_reject_review_item_already_reviewed():
     chain = _make_chain_mock(response_data=[])
 
-    with patch("app.services.review_service.get_supabase", return_value=chain):
-        with pytest.raises(ValueError, match="not found or already reviewed"):
-            await review_service.reject_review_item(
-                "item-1", "reviewer-1", "Bad answer"
-            )
+    with (
+        patch("app.services.review_service.get_supabase", return_value=chain),
+        pytest.raises(ValueError, match="not found or already reviewed"),
+    ):
+        await review_service.reject_review_item("item-1", "reviewer-1", "Bad answer")
 
 
 # -- Tests: override_review_item ------------------------------------------------
@@ -231,11 +231,11 @@ async def test_override_review_item_already_reviewed():
         notes="Fixing it",
     )
 
-    with patch("app.services.review_service.get_supabase", return_value=chain):
-        with pytest.raises(ValueError, match="not found or already reviewed"):
-            await review_service.override_review_item(
-                "item-1", "reviewer-1", request
-            )
+    with (
+        patch("app.services.review_service.get_supabase", return_value=chain),
+        pytest.raises(ValueError, match="not found or already reviewed"),
+    ):
+        await review_service.override_review_item("item-1", "reviewer-1", request)
 
 
 # -- Tests: get_query_status -----------------------------------------------------

@@ -17,7 +17,7 @@ All review actions are logged to audit_log (separate entry per action).
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.core.database import get_supabase
@@ -27,7 +27,6 @@ from app.schemas.review import (
     ReviewItemList,
     ReviewOverrideRequest,
 )
-
 
 # -- Queue management --------------------------------------------------------------
 
@@ -129,7 +128,7 @@ async def override_review_item(
     Corrected answer + original draft both stored for audit.
     """
     supabase = get_supabase()
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     response = await (
         supabase.table("review_queue")
@@ -221,7 +220,7 @@ async def _update_review_status(
     reviewer_notes: str | None = None,
 ) -> ReviewItem:
     supabase = get_supabase()
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     response = await (
         supabase.table("review_queue")

@@ -26,7 +26,7 @@ from __future__ import annotations
 import hashlib
 import io
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from langchain_openai import AzureOpenAIEmbeddings
@@ -35,7 +35,6 @@ from pypdf import PdfReader
 
 from app.core.database import get_async_supabase
 from app.schemas.document import DocumentMetadata, IngestionResult  # noqa: F401
-
 
 # -- Configuration ------------------------------------------------------------
 
@@ -272,7 +271,7 @@ async def _upsert_document_record(
             "doc_date": doc_date,
             "chunk_count": chunk_count,
             "status": "processing",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         },
         on_conflict="content_hash,user_id",
     ).execute()
@@ -308,7 +307,7 @@ async def _store_chunks(
             "chunk_index": chunk["chunk_index"],
             "embedding": embedding,
             "content_hash": content_hash,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         })
 
     # Batch upsert -- Supabase handles conflicts by chunk id
@@ -364,7 +363,7 @@ async def _mark_document_failed(document_id: str) -> None:
             .eq("id", document_id)
             .execute()
         )
-    except Exception as mark_exc:
+    except Exception as mark_exc:  # noqa: BLE001 - best-effort cleanup, never masks the original failure
         logger.error(
             "failed_to_mark_document_failed document_id={} error={}",
             document_id,
