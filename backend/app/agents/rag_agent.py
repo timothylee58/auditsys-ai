@@ -1,6 +1,7 @@
 """LangGraph RAG agent: retrieve -> synthesise -> validate."""
 from __future__ import annotations
 
+import re
 from typing import Any, TypedDict
 
 from loguru import logger
@@ -8,10 +9,15 @@ from openai import AsyncAzureOpenAI
 
 from app.core.database import get_supabase
 from app.core.settings import settings
-from app.guardrails.confidence_gate import confidence_gate
+from app.guardrails.confidence_gate import confidence_gate, score_confidence
 from app.guardrails.output_validator import validate_output
 from app.guardrails.pii_detector import scan_pii
 from app.services.embedding_service import get_embedding
+
+# Matches the "[doc:1a2b3c4d p.3]" labels _build_context_block prepends to
+# each chunk and the system prompt asks the model to echo back inline —
+# i.e. what the model actually cited, not just what was retrieved.
+_CITATION_PATTERN = re.compile(r"\[doc:([0-9a-f]{1,8})\s+p\.(\S+?)\]")
 
 MATCH_COUNT = 6
 
@@ -66,6 +72,36 @@ def _build_context_block(chunks: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
+def _parse_cited_chunks(answer: str, chunks: list[dict]) -> list[dict]:
+    """
+    Find which of the retrieved chunks the model actually cited, by
+    matching the "[doc:xxx p.N]" markers it was asked to echo back
+    against the same document_id/page_number pairs handed to it in
+    _build_context_block. Chunks the model never referenced are excluded
+    — this is what makes citation coverage in score_confidence a real
+    signal instead of a tautology (citations == retrieved_chunks always
+    "matches").
+    """
+    matches = _CITATION_PATTERN.findall(answer)
+    if not matches:
+        return []
+
+    cited = []
+    seen = set()
+    for doc_prefix, page in matches:
+        for chunk in chunks:
+            document_id = str(chunk.get("document_id") or "")
+            page_number = chunk.get("page_number")
+            page_str = str(page_number) if page_number is not None else "?"
+            if document_id.startswith(doc_prefix) and page_str == page:
+                key = (document_id, page_str)
+                if key not in seen:
+                    seen.add(key)
+                    cited.append(chunk)
+                break
+    return cited
+
+
 async def synthesise_answer(state: AgentState) -> AgentState:
     """Azure OpenAI answer synthesis node."""
     logger.info("node=synthesise_answer")
@@ -101,8 +137,8 @@ async def synthesise_answer(state: AgentState) -> AgentState:
     )
     answer = response.choices[0].message.content or ""
 
-    similarities = [c.get("similarity", 0.0) for c in chunks if c.get("similarity") is not None]
-    confidence_score = round(sum(similarities) / len(similarities), 4) if similarities else 0.0
+    cited_chunks = _parse_cited_chunks(answer, chunks)
+    confidence_score = await score_confidence(answer, chunks, cited_chunks)
 
     citations = [
         {
@@ -110,7 +146,7 @@ async def synthesise_answer(state: AgentState) -> AgentState:
             "page_number": c.get("page_number"),
             "similarity": c.get("similarity"),
         }
-        for c in chunks
+        for c in cited_chunks
     ]
 
     return {
