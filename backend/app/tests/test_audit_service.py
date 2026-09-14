@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.schemas.audit import AuditLogEntry, AuditLogFilter, AuditLogPage
 from app.services import audit_service
-
 
 # -- Helpers -------------------------------------------------------------------
 
@@ -56,7 +55,7 @@ def _sample_audit_row(entry_id: str = "entry-1") -> dict:
         "pii_detected": False,
         "validation_passed": True,
         "validation_errors": [],
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -149,8 +148,8 @@ async def test_get_audit_log_with_filters():
 
     filters = AuditLogFilter(
         status="answered",
-        date_from=datetime(2024, 1, 1, tzinfo=timezone.utc),
-        date_to=datetime(2024, 12, 31, tzinfo=timezone.utc),
+        date_from=datetime(2024, 1, 1, tzinfo=UTC),
+        date_to=datetime(2024, 12, 31, tzinfo=UTC),
         min_confidence=0.5,
         max_confidence=0.9,
         pii_only=True,

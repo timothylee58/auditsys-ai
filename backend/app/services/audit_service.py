@@ -23,12 +23,11 @@ Schema mirrors AgentState so entries are fully reproducible.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.core.database import get_supabase
 from app.schemas.audit import AuditLogEntry, AuditLogFilter, AuditLogPage
-
 
 # -- Write (append-only) -----------------------------------------------------------
 
@@ -71,7 +70,7 @@ async def write_audit_entry(
         "pii_detected": pii_detected,
         "validation_passed": validation_passed,
         "validation_errors": validation_errors or [],
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }).execute()
 
     return entry_id
