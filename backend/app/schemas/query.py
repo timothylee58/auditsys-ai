@@ -17,6 +17,10 @@ class QueryResponse(BaseModel):
 
 
 class QueryStatusResponse(BaseModel):
-    status: str  # "answered" | "pending_review" | "rejected"
-    answer: str | None
-    review_note: str | None
+    status: str  # "answered" | "pending_review" | "rejected" | "not_found"
+    # review_service.get_query_status() omits these keys entirely for the
+    # pending_review/not_found cases — defaults are required so that
+    # QueryStatusResponse(**status_payload) doesn't raise a validation
+    # error (and 500) on the first poll after a query is routed to review.
+    answer: str | None = None
+    review_note: str | None = None
