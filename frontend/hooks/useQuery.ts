@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+import { API_BASE_URL, DEMO_USER_ID } from "@/lib/api";
 
 export interface QueryResult {
   answer: string;
@@ -33,7 +32,7 @@ export function useAuditQuery() {
     try {
       const res = await fetch(`${API_BASE_URL}/query`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-User-ID": DEMO_USER_ID },
         body: JSON.stringify({ question }),
       });
       if (!res.ok && res.status !== 202) throw new Error(`Query failed: ${res.status}`);
@@ -53,7 +52,9 @@ export function useAuditQuery() {
     if (attempt > 60) return; // stop after ~5 minutes at 5s intervals
     setTimeout(async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/query/status/${sessionId}`);
+        const res = await fetch(`${API_BASE_URL}/query/status/${sessionId}`, {
+          headers: { "X-User-ID": DEMO_USER_ID },
+        });
         if (!res.ok) return;
         const data = (await res.json()) as QueryStatus;
         setPollStatus(data);
