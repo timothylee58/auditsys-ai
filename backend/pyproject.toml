@@ -26,7 +26,7 @@ dependencies = [
   "tiktoken>=0.7.0",
   "azure-identity>=1.19.0",
   "azure-keyvault-secrets>=4.8.0",
-  "loguru>=0.7.0"
+  "loguru>=0.7.0",
 ]
 
 [project.optional-dependencies]
