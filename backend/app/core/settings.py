@@ -11,6 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _KEY_VAULT_FIELDS = [
     "supabase_url",
     "supabase_service_key",
+    "supabase_jwt_secret",
     "azure_openai_api_key",
     "azure_openai_endpoint",
     "redis_url",
@@ -40,6 +41,10 @@ class Settings(BaseSettings):
     # Supabase
     supabase_url: str | None = None
     supabase_service_key: str | None = None
+    # Legacy HS256 project secret. Only needed for projects still issuing
+    # symmetric tokens; modern projects verify via the JWKS endpoint and can
+    # leave this unset.
+    supabase_jwt_secret: str | None = None
 
     # Langfuse
     langfuse_public_key: str | None = None
@@ -53,6 +58,14 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     confidence_threshold: float = 0.75
 
+    # Comma-separated user ids allowed to trigger privileged actions
+    # (POST /evals/run). Empty = nobody — fail closed.
+    admin_user_ids_raw: str = Field(default="", validation_alias="ADMIN_USER_IDS")
+
+    # Abuse protection on token-burning endpoints
+    query_rate_limit_per_minute: int = Field(default=30, validation_alias="QUERY_RATE_LIMIT_PER_MINUTE")
+    upload_rate_limit_per_minute: int = Field(default=10, validation_alias="UPLOAD_RATE_LIMIT_PER_MINUTE")
+
     # Guardrails
     presidio_enabled: bool = True
 
@@ -65,6 +78,10 @@ class Settings(BaseSettings):
     @property
     def allowed_origins(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins_raw.split(",") if o.strip()]
+
+    @property
+    def admin_user_ids(self) -> set[str]:
+        return {o.strip() for o in self.admin_user_ids_raw.split(",") if o.strip()}
 
 
 def _load_from_key_vault(settings: Settings) -> Settings:

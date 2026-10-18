@@ -18,21 +18,28 @@ def get_redis() -> aioredis.Redis:
     return aioredis.from_url(settings.redis_url, decode_responses=True)
 
 
-def _cache_key(query: str) -> str:
+def _cache_key(query: str, user_id: str | None = None) -> str:
+    """Build the cache key for a question.
+
+    The key is always scoped to the caller: answers may differ per tenant
+    (documents are user-scoped), so sharing an entry across users would
+    leak one tenant's data into another's session.
+    """
     query_hash = hashlib.sha256(query.strip().lower().encode()).hexdigest()
-    return f"{CACHE_PREFIX}{query_hash}"
+    scope = user_id or "anonymous"
+    return f"{CACHE_PREFIX}{scope}:{query_hash}"
 
 
-async def get_cached_answer(query_hash: str) -> dict | None:
-    """Look up a previously-cached answer by raw query text or its hash key."""
+async def get_cached_answer(query: str, user_id: str | None = None) -> dict | None:
+    """Look up a previously-cached answer for this question AND caller."""
     redis = get_redis()
-    key = query_hash if query_hash.startswith(CACHE_PREFIX) else _cache_key(query_hash)
+    key = _cache_key(query, user_id)
     cached = await redis.get(key)
     return json.loads(cached) if cached else None
 
 
-async def set_cached_answer(query_hash: str, answer: dict) -> None:
-    """Cache an answer payload for CACHE_TTL_SECONDS, keyed by query text or hash key."""
+async def set_cached_answer(query: str, user_id: str | None, answer: dict) -> None:
+    """Cache an answer payload for CACHE_TTL_SECONDS, scoped to the caller."""
     redis = get_redis()
-    key = query_hash if query_hash.startswith(CACHE_PREFIX) else _cache_key(query_hash)
+    key = _cache_key(query, user_id)
     await redis.setex(key, CACHE_TTL_SECONDS, json.dumps(answer))

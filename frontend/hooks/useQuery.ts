@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { API_BASE_URL, DEMO_USER_ID } from "@/lib/api";
+import { API_BASE_URL, authHeaders } from "@/lib/api";
 
 export interface QueryResult {
   answer: string;
@@ -32,7 +32,7 @@ export function useAuditQuery() {
     try {
       const res = await fetch(`${API_BASE_URL}/query`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-User-ID": DEMO_USER_ID },
+        headers: await authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ question }),
       });
       if (!res.ok && res.status !== 202) throw new Error(`Query failed: ${res.status}`);
@@ -53,7 +53,7 @@ export function useAuditQuery() {
     setTimeout(async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/query/status/${sessionId}`, {
-          headers: { "X-User-ID": DEMO_USER_ID },
+          headers: await authHeaders(),
         });
         if (!res.ok) return;
         const data = (await res.json()) as QueryStatus;

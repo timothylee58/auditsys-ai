@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches:
+      - master
       - main
 
 jobs:
@@ -13,7 +14,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm install
       - run: npm run typecheck --workspace frontend
@@ -29,3 +30,45 @@ jobs:
       - run: pip install -e ./backend[dev]
       - run: ruff check backend
       - run: pytest backend/app/tests
+
+  # Supply-chain guard: fail the build on known vulnerabilities so new
+  # CVEs surface here instead of in production.
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Audit Python dependencies
+        run: |
+          pip install pip-audit
+          pip install -e ./backend
+          # Accepted advisories (revisit when presidio-anonymizer relaxes its
+          # cryptography<49 cap — see backend/requirements.txt):
+          # - PYSEC-2026-3552/3553/3554: fixes require cryptography>=49, but
+          #   presidio-anonymizer 2.2.364 (latest) pins cryptography<49
+          #   upstream. No compatible release exists yet; blocked upstream.
+          pip-audit --skip-editable \
+            --ignore-vuln PYSEC-2026-3552 \
+            --ignore-vuln PYSEC-2026-3553 \
+            --ignore-vuln PYSEC-2026-3554
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Audit npm production dependencies (blocking)
+        run: |
+          npm install --package-lock-only
+          # Blocking gate covers production dependencies — what actually ships.
+          npm audit --omit=dev --audit-level=high
+      - name: Report npm dev-dependency advisories (non-blocking)
+        # Dev-only tooling advisories are reported, not gated. Current known
+        # residue: GHSA-vfj7-8cjw-p6xm (braces, stack-exhaustion DoS) — the
+        # advisory covers every released braces version, so there is no patched
+        # pin to take; it rides in via eslint-config-next → fast-glob →
+        # micromatch and cannot reach the production bundle. Revisit when
+        # braces ships a fixed release (drop this report-only split then).
+        run: |
+          npm audit --audit-level=high || \
+            echo "::warning::npm dev-dependency advisories present (non-blocking) — review the log"

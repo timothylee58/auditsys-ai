@@ -20,7 +20,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from app.core.database import get_supabase
+from app.core.database import get_async_supabase
 from app.schemas.review import (
     ReviewAction,
     ReviewItem,
@@ -39,7 +39,7 @@ async def get_pending_reviews(
     List pending review items for a reviewer.
     In production: filter by reviewer's assigned subsidiaries.
     """
-    supabase = get_supabase()
+    supabase = await get_async_supabase()
     offset = (page - 1) * page_size
 
     response = await (
@@ -68,7 +68,7 @@ async def get_review_item(
     reviewer_user_id: str,
 ) -> ReviewItem | None:
     """Fetch a single review item."""
-    supabase = get_supabase()
+    supabase = await get_async_supabase()
     response = await (
         supabase.table("review_queue")
         .select("*")
@@ -127,7 +127,7 @@ async def override_review_item(
     Reviewer writes a corrected answer.
     Corrected answer + original draft both stored for audit.
     """
-    supabase = get_supabase()
+    supabase = await get_async_supabase()
     now = datetime.now(UTC).isoformat()
 
     response = await (
@@ -170,7 +170,7 @@ async def get_query_status(
     Called by frontend polling GET /query/status/{session_id}.
     Returns current status + answer if approved/overridden.
     """
-    supabase = get_supabase()
+    supabase = await get_async_supabase()
 
     response = await (
         supabase.table("review_queue")
@@ -219,7 +219,7 @@ async def _update_review_status(
     action: ReviewAction,
     reviewer_notes: str | None = None,
 ) -> ReviewItem:
-    supabase = get_supabase()
+    supabase = await get_async_supabase()
     now = datetime.now(UTC).isoformat()
 
     response = await (
@@ -287,7 +287,7 @@ async def create_review_item(
     confidence_score: float,
 ) -> dict[str, Any]:
     """Legacy wrapper: creates a review item and returns the raw row dict."""
-    supabase = get_supabase()
+    supabase = await get_async_supabase()
     row = {
         "session_id": session_id,
         "user_id": user_id,

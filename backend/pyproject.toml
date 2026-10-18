@@ -9,18 +9,21 @@ dependencies = [
   "python-multipart>=0.0.19",
   "httpx>=0.28.1",
   "supabase>=2.10.0",
+  "pyjwt[crypto]>=2.9.0",
   "redis>=5.0.0",
   "openai>=1.55.0",
-  "langchain>=0.3.0,<0.4.0",
-  "langchain-openai>=0.2.0,<0.3.0",
-  "langchain-community>=0.3.0,<0.4.0",
-  "langgraph>=0.2.0,<0.3.0",
+  # LangChain family (1.x line): the `langchain` metapackage and
+  # `langchain-community` are intentionally omitted — nothing in app/ imports
+  # them, and their 0.3.x line carries known PYSEC advisories. Floors are the
+  # lowest versions clearing every known advisory (see requirements.txt).
+  "langchain-openai>=1.1.14",
+  "langgraph>=1.0.10,<2.0.0",
   "langfuse>=2.0.0",
-  # ragas>=0.3 imports langchain_community.chat_models.vertexai, removed in
-  # langchain-community 0.4+; pinned below that until ragas drops it upstream.
-  "ragas>=0.2.0,<0.3.0",
   "pyyaml>=6.0.0",
   "presidio-analyzer>=2.2.0",
+  # presidio-anonymizer 2.2.364 (latest) caps cryptography<49 upstream; the
+  # blocked cryptography advisories are accepted in CI via pip-audit
+  # --ignore-vuln until presidio publishes a compatible release.
   "presidio-anonymizer>=2.2.0",
   "pypdf>=4.0.0",
   "tiktoken>=0.7.0",
@@ -35,6 +38,16 @@ dev = [
   "pytest-asyncio>=0.24.0",
   "ruff>=0.8.2"
 ]
+# Offline eval harness only (app/evals/ragas_runner.py). NOT installed in the
+# production image and NOT covered by the CI dependency audit, because:
+# - ragas 0.2.x carries PYSEC-2026-3046 (no fixed release upstream) and
+#   PYSEC-2026-3047 (fix only in a 0.3.0 release candidate), and
+# - ragas>=0.3 imports langchain_community.chat_models.vertexai, which no
+#   longer exists on the langchain-community line compatible with langchain 1.x.
+# Re-enable in CI audits once ragas ships a fixed, compatible release.
+evals = [
+  "ragas>=0.2.0,<0.3.0"
+]
 
 [tool.ruff]
 line-length = 100
@@ -44,4 +57,12 @@ target-version = "py312"
 # B008: FastAPI's dependency-injection idiom (`= File(...)`, `= Depends(...)`)
 # relies on calling these in argument defaults; it is not the general
 # mutable-default-argument footgun the rule targets.
-ignore = ["B008"]
+ignore = [
+  # FastAPI's dependency-injection idiom (`= File(...)`, `= Depends(...)`)
+  # relies on calling these in argument defaults; it is not the general
+  # mutable-default-argument footgun the rule targets.
+  "B008",
+  # Some dev sandboxes mount the working tree with the executable bit set on
+  # every file; flagging "executable without shebang" on .py modules is noise.
+  "EXE002",
+]

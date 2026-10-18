@@ -21,6 +21,23 @@ class PIIResult:
     anonymised_text: str = ""
 
 
+# Presidio engines are expensive to build (NLP model load). Instantiate them
+# once and reuse across requests instead of per call.
+_analyzer = None
+_anonymizer = None
+
+
+def _get_engines():
+    global _analyzer, _anonymizer
+    if _analyzer is None:
+        from presidio_analyzer import AnalyzerEngine
+        from presidio_anonymizer import AnonymizerEngine
+
+        _analyzer = AnalyzerEngine()
+        _anonymizer = AnonymizerEngine()
+    return _analyzer, _anonymizer
+
+
 async def scan_pii(text: str) -> PIIResult:
     """
     Scan text for PII using Microsoft Presidio.
@@ -34,11 +51,7 @@ async def scan_pii(text: str) -> PIIResult:
         return PIIResult(has_pii=False)
 
     try:
-        from presidio_analyzer import AnalyzerEngine
-        from presidio_anonymizer import AnonymizerEngine
-
-        analyzer = AnalyzerEngine()
-        anonymizer = AnonymizerEngine()
+        analyzer, anonymizer = _get_engines()
 
         results = analyzer.analyze(
             text=text,
@@ -64,7 +77,9 @@ async def scan_pii(text: str) -> PIIResult:
         )
 
     except ImportError:
-        # Presidio not installed — fall back to basic regex
+        # Presidio not installed — fall back to basic regex, loudly: the
+        # fallback is substantially weaker and must not degrade silently.
+        logger.warning("pii_presidio_unavailable using_regex_fallback")
         return _regex_pii_scan(text)
 
 
