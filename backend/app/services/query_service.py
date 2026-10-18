@@ -25,13 +25,19 @@ async def run_query(
     question: str,
     *,
     session_id: str | None = None,
-    user_id: str | None = None,
+    user_id: str,
 ) -> QueryResult:
+    """Run a grounded query for an authenticated user.
+
+    ``user_id`` scopes the answer cache, the retrieval search, the review
+    queue item, and the audit trail. It is mandatory: identity comes from
+    the verified JWT in the route, never from client-supplied headers.
+    """
     session_id = session_id or str(uuid.uuid4())
     trace_id = str(uuid.uuid4())
     logger.info("query received session_id={} question_len={}", session_id, len(question))
 
-    cached = await _get_cached(question)
+    cached = await _get_cached(question, user_id)
     if cached is not None:
         logger.info("query_cache_hit session_id={}", session_id)
         answer, citations, confidence = cached["answer"], cached["citations"], cached["confidence"]
@@ -40,7 +46,7 @@ async def run_query(
         pii_detected = cached.get("pii_detected", False)
         passes_gate = True
     else:
-        result = await run_agent(question)
+        result = await run_agent(question, user_id=user_id)
         answer = result.get("answer", "")
         citations = result.get("citations", [])
         confidence = float(result.get("confidence_score", 0.0))
@@ -67,6 +73,7 @@ async def run_query(
     elif cached is None:
         await _set_cached(
             question,
+            user_id=user_id,
             answer=answer,
             citations=citations,
             confidence=confidence,
@@ -104,9 +111,9 @@ async def run_query(
     )
 
 
-async def _get_cached(question: str) -> dict | None:
+async def _get_cached(question: str, user_id: str) -> dict | None:
     try:
-        return await get_cached_answer(question)
+        return await get_cached_answer(question, user_id)
     except Exception as exc:  # noqa: BLE001 - cache is best-effort, never blocks a query
         logger.debug("query_cache_read_failed error={}", exc)
         return None
@@ -115,6 +122,7 @@ async def _get_cached(question: str) -> dict | None:
 async def _set_cached(
     question: str,
     *,
+    user_id: str,
     answer: str,
     citations: list[dict],
     confidence: float,
@@ -125,6 +133,7 @@ async def _set_cached(
     try:
         await set_cached_answer(
             question,
+            user_id,
             {
                 "answer": answer,
                 "citations": citations,

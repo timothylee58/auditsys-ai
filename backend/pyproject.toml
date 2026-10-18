@@ -9,6 +9,7 @@ dependencies = [
   "python-multipart>=0.0.19",
   "httpx>=0.28.1",
   "supabase>=2.10.0",
+  "pyjwt[crypto]>=2.9.0",
   "redis>=5.0.0",
   "openai>=1.55.0",
   "langchain>=0.3.0,<0.4.0",
@@ -44,4 +45,12 @@ target-version = "py312"
 # B008: FastAPI's dependency-injection idiom (`= File(...)`, `= Depends(...)`)
 # relies on calling these in argument defaults; it is not the general
 # mutable-default-argument footgun the rule targets.
-ignore = ["B008"]
+ignore = [
+  # FastAPI's dependency-injection idiom (`= File(...)`, `= Depends(...)`)
+  # relies on calling these in argument defaults; it is not the general
+  # mutable-default-argument footgun the rule targets.
+  "B008",
+  # Some dev sandboxes mount the working tree with the executable bit set on
+  # every file; flagging "executable without shebang" on .py modules is noise.
+  "EXE002",
+]

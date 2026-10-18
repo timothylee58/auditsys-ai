@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches:
+      - master
       - main
 
 jobs:
@@ -29,3 +30,26 @@ jobs:
       - run: pip install -e ./backend[dev]
       - run: ruff check backend
       - run: pytest backend/app/tests
+
+  # Supply-chain guard: fail the build on known vulnerabilities so new
+  # CVEs surface here instead of in production.
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Audit Python dependencies
+        run: |
+          pip install pip-audit
+          pip install -e ./backend
+          pip-audit --skip-editable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Audit npm dependencies
+        run: |
+          npm install --package-lock-only
+          npm audit --audit-level=high

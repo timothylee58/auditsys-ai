@@ -26,7 +26,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from app.core.database import get_supabase
+from app.core.database import get_async_supabase
 from app.schemas.audit import AuditLogEntry, AuditLogFilter, AuditLogPage
 
 # -- Write (append-only) -----------------------------------------------------------
@@ -51,7 +51,7 @@ async def write_audit_entry(
     Write one audit log entry. Returns the entry ID.
     This is the ONLY write operation this service exposes.
     """
-    supabase = get_supabase()
+    supabase = await get_async_supabase()
     entry_id = str(uuid.uuid4())
 
     await supabase.table("audit_log").insert({
@@ -88,7 +88,7 @@ async def get_audit_log(
     Paginated read of audit log entries for a user.
     Supports filtering by date range, status, and confidence threshold.
     """
-    supabase = get_supabase()
+    supabase = await get_async_supabase()
     offset = (page - 1) * page_size
 
     query = (
@@ -128,7 +128,7 @@ async def get_audit_log(
 
 async def get_audit_entry(entry_id: str, user_id: str) -> AuditLogEntry | None:
     """Fetch a single audit entry. RLS ensures user can only see own entries."""
-    supabase = get_supabase()
+    supabase = await get_async_supabase()
     response = await (
         supabase.table("audit_log")
         .select("*")
@@ -184,41 +184,10 @@ async def record_query(
     return {"id": entry_id}
 
 
-# -- Supabase migration (reference) ------------------------------------------------
-# Run this SQL in Supabase SQL editor to set up the immutable table:
-#
-# CREATE TABLE audit_log (
-#   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-#   session_id      UUID NOT NULL,
-#   user_id         UUID NOT NULL REFERENCES auth.users(id),
-#   query           TEXT NOT NULL,
-#   answer          TEXT,
-#   citations       JSONB DEFAULT '[]',
-#   confidence_score FLOAT NOT NULL,
-#   prompt_version  TEXT NOT NULL,
-#   model_name      TEXT NOT NULL,
-#   trace_id        UUID NOT NULL,
-#   status          TEXT NOT NULL CHECK (status IN ('answered','pending_review','error')),
-#   review_item_id  UUID,
-#   pii_detected    BOOLEAN DEFAULT FALSE,
-#   validation_passed BOOLEAN DEFAULT TRUE,
-#   validation_errors JSONB DEFAULT '[]',
-#   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-# );
-#
-# -- Enable RLS
-# ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
-#
-# -- INSERT only -- no UPDATE, no DELETE
-# CREATE POLICY "users_insert_own_audit"
-# ON audit_log FOR INSERT TO authenticated
-# WITH CHECK (auth.uid() = user_id);
-#
-# -- SELECT own entries
-# CREATE POLICY "users_select_own_audit"
-# ON audit_log FOR SELECT TO authenticated
-# USING (auth.uid() = user_id);
-#
-# -- Service role can read all (for admin dashboard)
-# CREATE POLICY "service_role_full_access"
-# ON audit_log FOR ALL TO service_role USING (true);
+# -- Immutability enforcement ------------------------------------------------------
+# The canonical schema lives in backend/scripts/migrations.sql (mirrored into
+# supabase/migrations/). audit_log is protected by:
+#   1. RLS: service role may only INSERT/SELECT — no UPDATE/DELETE policy.
+#   2. A BEFORE UPDATE/DELETE trigger raising an exception, which also covers
+#      the service role (RLS is bypassed by service_role; the trigger is not).
+# The application layer only ever calls .insert() on this table.

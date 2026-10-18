@@ -34,6 +34,7 @@ PROMPT_VERSION = "rag-agent-v1"
 
 class AgentState(TypedDict, total=False):
     question: str
+    user_id: str | None
     context: dict[str, Any]
     answer: str
     citations: list[dict]
@@ -45,16 +46,27 @@ class AgentState(TypedDict, total=False):
 
 
 async def retrieve_context(state: AgentState) -> AgentState:
-    """pgvector hybrid search node."""
+    """pgvector similarity search node, strictly scoped to the caller."""
     question = state["question"]
+    user_id = state.get("user_id")
     logger.info("node=retrieve_context question_len={}", len(question))
+
+    if not user_id:
+        # Defense in depth: the RPC accepts a null user_id (which would
+        # search every tenant's documents). Never allow an unscoped search.
+        logger.warning("retrieve_context_blocked user_id=missing")
+        return {**state, "context": {"chunks": []}}
 
     try:
         query_embedding = await get_embedding(question)
         client = get_supabase()
         result = client.rpc(
             "match_document_chunks",
-            {"query_embedding": query_embedding, "match_count": MATCH_COUNT},
+            {
+                "query_embedding": query_embedding,
+                "match_count": MATCH_COUNT,
+                "user_id": user_id,
+            },
         ).execute()
         chunks = result.data or []
     except Exception as exc:  # noqa: BLE001 - retrieval failure degrades gracefully
@@ -209,8 +221,13 @@ def get_agent_graph():
     return _agent_graph
 
 
-async def run_agent(question: str) -> AgentState:
+async def run_agent(question: str, *, user_id: str) -> AgentState:
+    """Run the RAG graph scoped to a user's documents.
+
+    ``user_id`` is mandatory: the retrieval node passes it to the
+    match_document_chunks RPC so only the caller's documents are searched.
+    """
     graph = get_agent_graph()
-    result = await graph.ainvoke({"question": question})
+    result = await graph.ainvoke({"question": question, "user_id": user_id})
     passes_gate = confidence_gate(result.get("confidence_score", 0.0), settings.confidence_threshold)
     return {**result, "passes_confidence_gate": passes_gate}

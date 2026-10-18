@@ -29,7 +29,9 @@ app.add_middleware(
     allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Authorization", "Content-Type", "X-User-ID"],
+    # Identity travels in Authorization (Supabase JWT). The self-asserted
+    # X-User-ID header was removed — it allowed trivial impersonation.
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 

@@ -13,7 +13,7 @@ Design decisions:
   - Idempotent: re-uploading same file replaces existing chunks
     (matched on content_hash + user_id)
   - Duplicate detection: if a document with the same content_hash
-    and user_id already exists in "ready" status, return early
+    and user_id already exists in "indexed" status, return early
     without re-embedding (cost optimization)
 
 # TODO: Redis embedding cache could be re-added for cost optimization.
@@ -106,6 +106,7 @@ async def ingest_document(
         entity=entity,
         doc_date=doc_date,
         chunk_count=len(chunks),
+        page_count=len(pages),
     )
 
     # 4-5. Embed and store with failure recovery
@@ -116,10 +117,8 @@ async def ingest_document(
         # 5. Upsert chunks + vectors into pgvector
         await _store_chunks(
             document_id=document_id,
-            user_id=user_id,
             chunks=chunks,
             embeddings=embeddings,
-            content_hash=content_hash,
         )
     except Exception as exc:
         logger.error(
@@ -241,15 +240,17 @@ async def _upsert_document_record(
     entity: str | None,
     doc_date: str | None,
     chunk_count: int,
+    page_count: int,
 ) -> None:
     supabase = await get_async_supabase()
+    now = datetime.now(UTC).isoformat()
 
     # Clean up chunks from any prior failed attempt for this content_hash + user_id
     stale_docs = await (
         supabase.table("documents")
         .select("id")
         .eq("content_hash", content_hash)
-        .eq("user_id", user_id)
+        .eq("uploaded_by", user_id)
         .eq("status", "failed")
         .execute()
     )
@@ -261,19 +262,24 @@ async def _upsert_document_record(
             .execute()
         )
 
+    # Column names match the documents schema (uploaded_by, not user_id).
+    # The unique key is (content_hash, uploaded_by) so two users can hold
+    # identical documents without colliding.
     await supabase.table("documents").upsert(
         {
             "id": document_id,
-            "user_id": user_id,
+            "uploaded_by": user_id,
             "filename": filename,
             "content_hash": content_hash,
             "entity": entity,
             "doc_date": doc_date,
+            "page_count": page_count,
             "chunk_count": chunk_count,
             "status": "processing",
-            "created_at": datetime.now(UTC).isoformat(),
+            "created_at": now,
+            "updated_at": now,
         },
-        on_conflict="content_hash,user_id",
+        on_conflict="content_hash,uploaded_by",
     ).execute()
 
 
@@ -281,10 +287,8 @@ async def _upsert_document_record(
 
 async def _store_chunks(
     document_id: str,
-    user_id: str,
     chunks: list[dict],
     embeddings: list[list[float]],
-    content_hash: str,
 ) -> None:
     """
     Upsert chunks with their embeddings into the document_chunks table.
@@ -293,20 +297,18 @@ async def _store_chunks(
     """
     supabase = await get_async_supabase()
 
+    # Row shape matches the document_chunks schema: text lives in `content`,
+    # the page number in `page_number`. Provenance fields (source/entity/
+    # doc_date) come from the documents table join at query time.
     rows = []
     for chunk, embedding in zip(chunks, embeddings):
         rows.append({
             "id": chunk["id"],
             "document_id": document_id,
-            "user_id": user_id,
-            "text": chunk["text"],
-            "source": chunk["source"],
-            "page": chunk["page"],
-            "entity": chunk["entity"],
-            "doc_date": chunk["doc_date"],
             "chunk_index": chunk["chunk_index"],
+            "content": chunk["text"],
+            "page_number": chunk["page"],
             "embedding": embedding,
-            "content_hash": content_hash,
             "created_at": datetime.now(UTC).isoformat(),
         })
 
@@ -317,9 +319,14 @@ async def _store_chunks(
             rows[i : i + batch_size]
         ).execute()
 
-    # Mark document as ready
+    # Mark the document as searchable. Must be "indexed" — that is the
+    # status match_document_chunks filters on; writing any other value
+    # made freshly-ingested documents invisible to retrieval.
     await supabase.table("documents").update(
-        {"status": "ready"}
+        {
+            "status": "indexed",
+            "updated_at": datetime.now(UTC).isoformat(),
+        }
     ).eq("id", document_id).execute()
 
 
@@ -330,14 +337,14 @@ def _hash_content(file_bytes: bytes) -> str:
 
 
 async def _find_existing_document(content_hash: str, user_id: str) -> dict | None:
-    """Check if a document with the same content_hash and user_id already exists as ready."""
+    """Check if a document with the same content_hash and owner already exists as indexed."""
     supabase = await get_async_supabase()
     result = await (
         supabase.table("documents")
         .select("id, filename, chunk_count, page_count")
         .eq("content_hash", content_hash)
-        .eq("user_id", user_id)
-        .eq("status", "ready")
+        .eq("uploaded_by", user_id)
+        .eq("status", "indexed")
         .limit(1)
         .execute()
     )
