@@ -11,19 +11,38 @@ export function useReviewQueue() {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchQueue = useCallback(
+    () => apiGet<ReviewItemPage>("/review-queue?status=pending"),
+    []
+  );
+
   const refresh = useCallback(async () => {
     setIsLoading(true);
     try {
-      const page = await apiGet<ReviewItemPage>("/review-queue?status=pending");
-      setItems(page.items);
+      setItems((await fetchQueue()).items);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchQueue]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    // Initial load: setState only inside promise callbacks (never
+    // synchronously in the effect body) per react-hooks/set-state-in-effect.
+    let cancelled = false;
+    fetchQueue().then(
+      (page) => {
+        if (cancelled) return;
+        setItems(page.items);
+        setIsLoading(false);
+      },
+      () => {
+        if (!cancelled) setIsLoading(false);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchQueue]);
 
   async function approve(id: string) {
     await apiPost(`/review-queue/${id}/approve`);

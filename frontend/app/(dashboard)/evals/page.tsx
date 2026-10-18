@@ -28,18 +28,33 @@ export default function EvalsPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const loadRuns = useCallback(() => apiGet<{ runs: EvalRun[] }>("/evals/results"), []);
+
   const refresh = useCallback(async () => {
     try {
-      const { runs } = await apiGet<{ runs: EvalRun[] }>("/evals/results");
-      setRuns(runs);
+      setRuns((await loadRuns()).runs);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load eval results");
     }
-  }, []);
+  }, [loadRuns]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    // Initial load: setState only inside promise callbacks (never
+    // synchronously in the effect body) per react-hooks/set-state-in-effect.
+    let cancelled = false;
+    loadRuns().then(
+      ({ runs }) => {
+        if (!cancelled) setRuns(runs);
+      },
+      (err) => {
+        if (!cancelled)
+          setError(err instanceof Error ? err.message : "Failed to load eval results");
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [loadRuns]);
 
   async function runEvals() {
     setIsRunning(true);

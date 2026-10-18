@@ -17,9 +17,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     const supabase = getSupabaseClient();
     if (!supabase) {
       // Auth not configured — let the API's 401s surface the problem rather
-      // than trapping the user in a redirect loop.
-      setChecked(true);
-      return;
+      // than trapping the user in a redirect loop. Deferred to a timer so the
+      // effect body never calls setState synchronously
+      // (react-hooks/set-state-in-effect).
+      const timer = setTimeout(() => setChecked(true), 0);
+      return () => clearTimeout(timer);
     }
 
     let cancelled = false;
