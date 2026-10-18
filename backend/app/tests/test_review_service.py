@@ -70,7 +70,7 @@ async def test_get_pending_reviews_returns_list():
     rows = [_sample_review_row("item-1"), _sample_review_row("item-2")]
     chain = _make_chain_mock(response_data=rows, response_count=2)
 
-    with patch("app.services.review_service.get_supabase", return_value=chain):
+    with patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await review_service.get_pending_reviews(
             reviewer_user_id="reviewer-1",
             page=1,
@@ -89,7 +89,7 @@ async def test_get_pending_reviews_returns_list():
 async def test_get_pending_reviews_empty():
     chain = _make_chain_mock(response_data=[], response_count=0)
 
-    with patch("app.services.review_service.get_supabase", return_value=chain):
+    with patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await review_service.get_pending_reviews(
             reviewer_user_id="reviewer-1",
         )
@@ -107,7 +107,7 @@ async def test_get_review_item_found():
     row = _sample_review_row("item-1")
     chain = _make_chain_mock(response_data=row)
 
-    with patch("app.services.review_service.get_supabase", return_value=chain):
+    with patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await review_service.get_review_item("item-1", "reviewer-1")
 
     assert result is not None
@@ -119,7 +119,7 @@ async def test_get_review_item_found():
 async def test_get_review_item_not_found():
     chain = _make_chain_mock(response_data=None)
 
-    with patch("app.services.review_service.get_supabase", return_value=chain):
+    with patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await review_service.get_review_item("nonexistent", "reviewer-1")
 
     assert result is None
@@ -136,7 +136,7 @@ async def test_approve_review_item_success():
     chain = _make_chain_mock(response_data=[approved_row])
 
     with (
-        patch("app.services.review_service.get_supabase", return_value=chain),
+        patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)),
         patch("app.services.review_service._log_review_action", new_callable=AsyncMock),
     ):
         result = await review_service.approve_review_item("item-1", "reviewer-1")
@@ -151,7 +151,7 @@ async def test_approve_review_item_already_reviewed():
     chain = _make_chain_mock(response_data=[])  # empty = not found/already reviewed
 
     with (
-        patch("app.services.review_service.get_supabase", return_value=chain),
+        patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)),
         pytest.raises(ValueError, match="not found or already reviewed"),
     ):
         await review_service.approve_review_item("item-1", "reviewer-1")
@@ -169,7 +169,7 @@ async def test_reject_review_item_success():
     chain = _make_chain_mock(response_data=[rejected_row])
 
     with (
-        patch("app.services.review_service.get_supabase", return_value=chain),
+        patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)),
         patch("app.services.review_service._log_review_action", new_callable=AsyncMock),
     ):
         result = await review_service.reject_review_item(
@@ -186,7 +186,7 @@ async def test_reject_review_item_already_reviewed():
     chain = _make_chain_mock(response_data=[])
 
     with (
-        patch("app.services.review_service.get_supabase", return_value=chain),
+        patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)),
         pytest.raises(ValueError, match="not found or already reviewed"),
     ):
         await review_service.reject_review_item("item-1", "reviewer-1", "Bad answer")
@@ -210,7 +210,7 @@ async def test_override_review_item_success():
     )
 
     with (
-        patch("app.services.review_service.get_supabase", return_value=chain),
+        patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)),
         patch("app.services.review_service._log_review_action", new_callable=AsyncMock),
     ):
         result = await review_service.override_review_item(
@@ -232,7 +232,7 @@ async def test_override_review_item_already_reviewed():
     )
 
     with (
-        patch("app.services.review_service.get_supabase", return_value=chain),
+        patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)),
         pytest.raises(ValueError, match="not found or already reviewed"),
     ):
         await review_service.override_review_item("item-1", "reviewer-1", request)
@@ -251,7 +251,7 @@ async def test_get_query_status_approved():
     }
     chain = _make_chain_mock(response_data=[row])
 
-    with patch("app.services.review_service.get_supabase", return_value=chain):
+    with patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await review_service.get_query_status("session-1", "user-1")
 
     assert result["status"] == "answered"
@@ -268,7 +268,7 @@ async def test_get_query_status_overridden():
     }
     chain = _make_chain_mock(response_data=[row])
 
-    with patch("app.services.review_service.get_supabase", return_value=chain):
+    with patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await review_service.get_query_status("session-1", "user-1")
 
     assert result["status"] == "answered"
@@ -286,7 +286,7 @@ async def test_get_query_status_rejected():
     }
     chain = _make_chain_mock(response_data=[row])
 
-    with patch("app.services.review_service.get_supabase", return_value=chain):
+    with patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await review_service.get_query_status("session-1", "user-1")
 
     assert result["status"] == "rejected"
@@ -304,7 +304,7 @@ async def test_get_query_status_pending():
     }
     chain = _make_chain_mock(response_data=[row])
 
-    with patch("app.services.review_service.get_supabase", return_value=chain):
+    with patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await review_service.get_query_status("session-1", "user-1")
 
     assert result["status"] == "pending_review"
@@ -314,7 +314,7 @@ async def test_get_query_status_pending():
 async def test_get_query_status_not_found():
     chain = _make_chain_mock(response_data=[])
 
-    with patch("app.services.review_service.get_supabase", return_value=chain):
+    with patch("app.services.review_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await review_service.get_query_status("session-x", "user-x")
 
     assert result["status"] == "not_found"

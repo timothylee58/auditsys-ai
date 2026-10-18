@@ -66,7 +66,7 @@ def _sample_audit_row(entry_id: str = "entry-1") -> dict:
 async def test_write_audit_entry_returns_entry_id():
     chain = _make_chain_mock(response_data=[_sample_audit_row()])
 
-    with patch("app.services.audit_service.get_supabase", return_value=chain):
+    with patch("app.services.audit_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         entry_id = await audit_service.write_audit_entry(
             session_id="session-1",
             user_id="user-1",
@@ -91,7 +91,7 @@ async def test_write_audit_entry_returns_entry_id():
 async def test_write_audit_entry_with_optional_fields():
     chain = _make_chain_mock(response_data=[_sample_audit_row()])
 
-    with patch("app.services.audit_service.get_supabase", return_value=chain):
+    with patch("app.services.audit_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         entry_id = await audit_service.write_audit_entry(
             session_id="session-2",
             user_id="user-2",
@@ -125,7 +125,7 @@ async def test_get_audit_log_returns_paginated_results():
     rows = [_sample_audit_row("entry-1"), _sample_audit_row("entry-2")]
     chain = _make_chain_mock(response_data=rows, response_count=2)
 
-    with patch("app.services.audit_service.get_supabase", return_value=chain):
+    with patch("app.services.audit_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await audit_service.get_audit_log(
             user_id="user-1",
             filters=AuditLogFilter(),
@@ -155,7 +155,7 @@ async def test_get_audit_log_with_filters():
         pii_only=True,
     )
 
-    with patch("app.services.audit_service.get_supabase", return_value=chain):
+    with patch("app.services.audit_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await audit_service.get_audit_log(
             user_id="user-1",
             filters=filters,
@@ -173,7 +173,7 @@ async def test_get_audit_log_has_next_true():
     rows = [_sample_audit_row(f"entry-{i}") for i in range(10)]
     chain = _make_chain_mock(response_data=rows, response_count=25)
 
-    with patch("app.services.audit_service.get_supabase", return_value=chain):
+    with patch("app.services.audit_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await audit_service.get_audit_log(
             user_id="user-1",
             filters=AuditLogFilter(),
@@ -193,7 +193,7 @@ async def test_get_audit_entry_found():
     row = _sample_audit_row("entry-1")
     chain = _make_chain_mock(response_data=row)
 
-    with patch("app.services.audit_service.get_supabase", return_value=chain):
+    with patch("app.services.audit_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await audit_service.get_audit_entry("entry-1", "user-1")
 
     assert result is not None
@@ -205,7 +205,7 @@ async def test_get_audit_entry_found():
 async def test_get_audit_entry_not_found():
     chain = _make_chain_mock(response_data=None)
 
-    with patch("app.services.audit_service.get_supabase", return_value=chain):
+    with patch("app.services.audit_service.get_async_supabase", new=AsyncMock(return_value=chain)):
         result = await audit_service.get_audit_entry("nonexistent", "user-1")
 
     assert result is None
