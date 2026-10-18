@@ -44,7 +44,15 @@ jobs:
         run: |
           pip install pip-audit
           pip install -e ./backend
-          pip-audit --skip-editable
+          # Accepted advisories (revisit when presidio-anonymizer relaxes its
+          # cryptography<49 cap — see backend/requirements.txt):
+          # - PYSEC-2026-3552/3553/3554: fixes require cryptography>=49, but
+          #   presidio-anonymizer 2.2.364 (latest) pins cryptography<49
+          #   upstream. No compatible release exists yet; blocked upstream.
+          pip-audit --skip-editable \
+            --ignore-vuln PYSEC-2026-3552 \
+            --ignore-vuln PYSEC-2026-3553 \
+            --ignore-vuln PYSEC-2026-3554
       - uses: actions/setup-node@v4
         with:
           node-version: 20

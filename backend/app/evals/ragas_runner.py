@@ -101,9 +101,18 @@ async def _collect_rows(
 
 
 def _score_with_ragas(rows: list[dict[str, Any]], metric_names: list[str]) -> dict[str, Any]:
-    from datasets import Dataset
-    from ragas import evaluate
-    from ragas.metrics import answer_relevancy, context_precision, context_recall, faithfulness
+    # ragas is an optional eval-only dependency ([project.optional-dependencies]
+    # evals) — it is not installed with the runtime service. Fail with an
+    # actionable message instead of a bare ImportError.
+    try:
+        from datasets import Dataset
+        from ragas import evaluate
+        from ragas.metrics import answer_relevancy, context_precision, context_recall, faithfulness
+    except ImportError as exc:  # pragma: no cover - depends on optional extra
+        raise RuntimeError(
+            "ragas is not installed; install the eval extra with "
+            "'pip install -e \".[evals]\"' from backend/"
+        ) from exc
 
     metric_map = {
         "faithfulness": faithfulness,
