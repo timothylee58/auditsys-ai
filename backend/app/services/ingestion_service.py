@@ -388,7 +388,7 @@ async def list_documents(*, user_id: str, page: int = 1, page_size: int = 25) ->
     result = await (
         client.table("documents")
         .select("*", count="exact")
-        .eq("user_id", user_id)
+        .eq("uploaded_by", user_id)
         .neq("status", "deleted")
         .order("created_at", desc=True)
         .range(start, end)
@@ -411,14 +411,14 @@ async def soft_delete_document(document_id: str, user_id: str) -> None:
     # Verify ownership before deletion
     doc_result = await (
         client.table("documents")
-        .select("id, user_id")
+        .select("id, uploaded_by")
         .eq("id", document_id)
         .limit(1)
         .execute()
     )
     if not doc_result.data:
         raise ValueError(f"Document {document_id} not found")
-    if doc_result.data[0]["user_id"] != user_id:
+    if doc_result.data[0]["uploaded_by"] != user_id:
         raise PermissionError(f"User {user_id} does not own document {document_id}")
 
     await client.table("document_chunks").delete().eq("document_id", document_id).execute()
