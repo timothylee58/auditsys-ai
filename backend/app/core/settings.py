@@ -68,6 +68,10 @@ class Settings(BaseSettings):
 
     # Guardrails
     presidio_enabled: bool = True
+    # spaCy model Presidio uses for NER. Must be installed in the image
+    # (Dockerfile). en_core_web_sm is small and fast but weaker at PERSON
+    # recall than en_core_web_lg; switch via PRESIDIO_SPACY_MODEL.
+    presidio_spacy_model: str = Field(default="en_core_web_sm", validation_alias="PRESIDIO_SPACY_MODEL")
 
     # Audit-grade pipeline (claims -> cited spans -> verifier -> hash chain).
     # Off by default: the legacy retrieve/synthesise/validate graph stays the

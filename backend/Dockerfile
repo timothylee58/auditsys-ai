@@ -12,6 +12,11 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Bake the spaCy model Presidio needs into the image. Without it Presidio
+# tries to download one at request time (and exits the process on failure).
+ARG PRESIDIO_SPACY_MODEL=en_core_web_sm
+RUN python -m spacy download ${PRESIDIO_SPACY_MODEL}
+
 COPY . .
 
 # Run as an unprivileged user — the app only needs to bind 8000.
