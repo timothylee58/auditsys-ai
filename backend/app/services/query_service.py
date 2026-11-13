@@ -37,7 +37,11 @@ async def run_query(
     trace_id = str(uuid.uuid4())
     logger.info("query received session_id={} question_len={}", session_id, len(question))
 
-    cached = await _get_cached(question, user_id)
+    audit_grade = settings.audit_grade_pipeline
+    # The audit-grade pipeline never serves cached answers: every answer must
+    # be freshly verified against the current documents and chain-logged.
+    cached = None if audit_grade else await _get_cached(question, user_id)
+    audit_state: dict | None = None
     if cached is not None:
         logger.info("query_cache_hit session_id={}", session_id)
         answer, citations, confidence = cached["answer"], cached["citations"], cached["confidence"]
@@ -46,7 +50,13 @@ async def run_query(
         pii_detected = cached.get("pii_detected", False)
         passes_gate = True
     else:
-        result = await run_agent(question, user_id=user_id)
+        if audit_grade:
+            from app.agent.graph import run_audit_agent
+
+            result = await run_audit_agent(question, user_id=user_id)
+            audit_state = result
+        else:
+            result = await run_agent(question, user_id=user_id)
         answer = result.get("answer", "")
         citations = result.get("citations", [])
         confidence = float(result.get("confidence_score", 0.0))
@@ -58,7 +68,13 @@ async def run_query(
     review_item_id: str | None = None
     status = "answered"
 
-    if not passes_gate:
+    refused = audit_state is not None and audit_state.get("status") == "refused"
+
+    if refused:
+        # A refusal is a deliberate, final outcome, not a draft needing review.
+        status = "refused"
+        citations = []
+    elif not passes_gate:
         logger.warning("low confidence query flagged session_id={} confidence={:.2f}", session_id, confidence)
         review_item = await review_service.create_review_item(
             session_id=session_id,
@@ -70,7 +86,7 @@ async def run_query(
         )
         review_item_id = review_item.get("id")
         status = "pending_review"
-    elif cached is None:
+    elif cached is None and not audit_grade:
         await _set_cached(
             question,
             user_id=user_id,
@@ -99,11 +115,22 @@ async def run_query(
         validation_errors=validation_errors,
     )
 
+    if audit_state is not None:
+        # Fail closed: an answer that cannot be written to the tamper-evident
+        # log must not be returned, so errors here propagate to the caller.
+        from app.audit.chain import append_entry
+        from app.audit.payload import build_chain_payload
+
+        payload = await build_chain_payload(
+            audit_state, question=question, session_id=session_id, trace_id=trace_id, user_id=user_id
+        )
+        await append_entry(payload, user_id=user_id)
+
     return QueryResult(
         answer=answer,
         confidence=confidence,
         sources=citations,
-        flagged_for_review=not passes_gate,
+        flagged_for_review=not passes_gate and not refused,
         session_id=session_id,
         trace_id=trace_id,
         status=status,
