@@ -69,6 +69,20 @@ class Settings(BaseSettings):
     # Guardrails
     presidio_enabled: bool = True
 
+    # Audit-grade pipeline (claims -> cited spans -> verifier -> hash chain).
+    # Off by default: the legacy retrieve/synthesise/validate graph stays the
+    # live path until the new pipeline has been measured against the RAGAS gate.
+    audit_grade_pipeline: bool = Field(default=False, validation_alias="AUDIT_GRADE_PIPELINE")
+    # Smaller/cheaper deployment for the claim verifier. Falls back to the
+    # main deployment when unset.
+    azure_openai_verifier_deployment: str | None = Field(
+        default=None, validation_alias="AZURE_OPENAI_VERIFIER_DEPLOYMENT"
+    )
+    # Agentic retrieval loop
+    max_retrieval_rounds: int = Field(default=3, ge=1, le=6, validation_alias="MAX_RETRIEVAL_ROUNDS")
+    min_evidence_spans: int = Field(default=1, ge=1, validation_alias="MIN_EVIDENCE_SPANS")
+    min_span_similarity: float = Field(default=0.30, ge=0.0, le=1.0, validation_alias="MIN_SPAN_SIMILARITY")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",
