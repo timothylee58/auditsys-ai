@@ -33,6 +33,8 @@ from langchain_openai import AzureOpenAIEmbeddings
 from loguru import logger
 from pypdf import PdfReader
 
+from app.cite.spans import content_hash as span_content_hash
+from app.cite.spans import span_id_for
 from app.core.database import get_async_supabase
 from app.schemas.document import DocumentMetadata, IngestionResult  # noqa: F401
 
@@ -41,6 +43,7 @@ from app.schemas.document import DocumentMetadata, IngestionResult  # noqa: F401
 CHUNK_SIZE = 800          # tokens (approximate via char count / 4)
 CHUNK_OVERLAP = 160       # 20% overlap
 MIN_CHUNK_LENGTH = 100    # discard empty/whitespace chunks
+DOCUMENT_VERSION = 1      # spans cite (document, version); bumped when revisions ship
 
 
 # -- Main ingestion entrypoint ------------------------------------------------
@@ -184,7 +187,14 @@ def _chunk_pages(
         start = 0
         while start < len(text):
             end = min(start + char_size, len(text))
-            chunk_text = text[start:end].strip()
+            raw = text[start:end]
+            # Track the stripped chunk's true offsets into the page text so a
+            # citation can point at the exact character range:
+            # text[char_start:char_end] == chunk_text.
+            lstripped = raw.lstrip()
+            char_start = start + (len(raw) - len(lstripped))
+            chunk_text = lstripped.rstrip()
+            char_end = char_start + len(chunk_text)
 
             if len(chunk_text) >= MIN_CHUNK_LENGTH:
                 chunks.append({
@@ -192,6 +202,9 @@ def _chunk_pages(
                     "text": chunk_text,
                     "source": source,
                     "page": page_num,
+                    "char_start": char_start,
+                    "char_end": char_end,
+                    "content_hash": span_content_hash(chunk_text),
                     "entity": entity,
                     "doc_date": doc_date,
                     "chunk_index": len(chunks),
@@ -273,6 +286,7 @@ async def _upsert_document_record(
             "content_hash": content_hash,
             "entity": entity,
             "doc_date": doc_date,
+            "version": DOCUMENT_VERSION,
             "page_count": page_count,
             "chunk_count": chunk_count,
             "status": "processing",
@@ -308,6 +322,12 @@ async def _store_chunks(
             "chunk_index": chunk["chunk_index"],
             "content": chunk["text"],
             "page_number": chunk["page"],
+            "char_start": chunk["char_start"],
+            "char_end": chunk["char_end"],
+            "content_hash": chunk["content_hash"],
+            "span_id": span_id_for(
+                document_id, DOCUMENT_VERSION, chunk["chunk_index"], chunk["content_hash"]
+            ),
             "embedding": embedding,
             "created_at": datetime.now(UTC).isoformat(),
         })
