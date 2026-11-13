@@ -304,3 +304,189 @@ on conflict (id) do update
 set public = excluded.public,
     file_size_limit = excluded.file_size_limit,
     allowed_mime_types = excluded.allowed_mime_types;
+
+-- ===========================================================================
+-- Increment 002 — span model (audit-grade citations)
+-- ===========================================================================
+-- Every chunk becomes a citable span: (document id, version, page, character
+-- range, content hash) plus a deterministic span_id. See app/cite/spans.py;
+-- the span_id formula below MUST match span_id_for() there:
+--     sha256(document_id|version|chunk_index|content_hash) hex, first 32 chars
+-- Chunks ingested before this increment are backfilled with content_hash and
+-- span_id. Their character offsets are unknown (NULL) until the document is
+-- re-ingested; text and hash remain verifiable.
+-- Deploy note: ship the app version that writes these columns before, or
+-- together with, this migration — span_id/content_hash become NOT NULL.
+
+alter table documents
+    add column if not exists version int not null default 1;
+
+alter table document_chunks
+    add column if not exists span_id text,
+    add column if not exists char_start int,
+    add column if not exists char_end int,
+    add column if not exists content_hash text;
+
+update document_chunks
+set content_hash = encode(sha256(convert_to(content, 'UTF8')), 'hex')
+where content_hash is null;
+
+update document_chunks c
+set span_id = substr(
+    encode(
+        sha256(convert_to(
+            c.document_id::text || '|' || d.version::text || '|' ||
+            c.chunk_index::text || '|' || c.content_hash,
+            'UTF8'
+        )),
+        'hex'
+    ),
+    1, 32
+)
+from documents d
+where d.id = c.document_id and c.span_id is null;
+
+alter table document_chunks
+    alter column span_id set not null,
+    alter column content_hash set not null;
+
+create unique index if not exists document_chunks_span_id_idx
+    on document_chunks (span_id);
+
+do $$
+begin
+    if not exists (
+        select 1 from pg_constraint where conname = 'document_chunks_span_range_chk'
+    ) then
+        alter table document_chunks
+            add constraint document_chunks_span_range_chk
+            check (
+                (char_start is null and char_end is null)
+                or (char_start is not null and char_end is not null
+                    and char_start >= 0 and char_end > char_start)
+            );
+    end if;
+end
+$$;
+
+-- match_document_chunks now also returns the span fields. The return type
+-- changes, so the function must be dropped first (CREATE OR REPLACE cannot).
+drop function if exists match_document_chunks (vector, int, uuid[], uuid, double precision);
+
+create function match_document_chunks (
+    query_embedding vector(3072),
+    match_count int default 6,
+    filter_document_ids uuid[] default null,
+    user_id uuid default null,
+    match_threshold float default 0.0
+)
+returns table (
+    id uuid,
+    document_id uuid,
+    content text,
+    page_number int,
+    similarity float,
+    text text,
+    source text,
+    page int,
+    entity text,
+    doc_date date,
+    score float,
+    span_id text,
+    version int,
+    char_start int,
+    char_end int,
+    content_hash text
+)
+language sql stable
+set search_path = public, extensions
+as $$
+    select
+        c.id,
+        c.document_id,
+        c.content,
+        c.page_number,
+        1 - (c.embedding::halfvec(3072) <=> query_embedding::halfvec(3072)) as similarity,
+        c.content as text,
+        d.filename as source,
+        c.page_number as page,
+        d.entity,
+        d.doc_date,
+        1 - (c.embedding::halfvec(3072) <=> query_embedding::halfvec(3072)) as score,
+        c.span_id,
+        d.version,
+        c.char_start,
+        c.char_end,
+        c.content_hash
+    from document_chunks c
+    join documents d on d.id = c.document_id
+    where d.status = 'indexed'
+        and (filter_document_ids is null or c.document_id = any (filter_document_ids))
+        and d.uploaded_by = match_document_chunks.user_id
+        and (1 - (c.embedding::halfvec(3072) <=> query_embedding::halfvec(3072))) >= match_threshold
+    order by c.embedding::halfvec(3072) <=> query_embedding::halfvec(3072)
+    limit match_count;
+$$;
+
+-- ===========================================================================
+-- Increment 003 — hash-chained audit log
+-- ===========================================================================
+-- One row per answered or refused question. Each row stores the previous
+-- row's hash; entry_hash = sha256(prev_hash || E'\n' || canonical). See
+-- app/audit/chain.py (the application computes the hashes; `canonical` is
+-- the exact string that was hashed, kept beside the queryable jsonb payload
+-- so verification never depends on Postgres JSON re-serialisation).
+--
+-- * prev_hash is UNIQUE: two concurrent writers cannot fork the chain; the
+--   loser's insert fails with 23505 and the app re-reads the head and retries.
+-- * seq is an identity column. Failed/retried inserts may leave gaps in seq;
+--   gaps are normal. Integrity is the hash linkage, not seq continuity.
+-- * UPDATE, DELETE and TRUNCATE are blocked for EVERY role (including the
+--   service role, which bypasses RLS) by triggers, same as audit_log.
+-- * The table records references and hashes, not raw document text.
+
+create table if not exists audit_chain (
+    seq bigint generated always as identity primary key,
+    prev_hash text not null unique,
+    entry_hash text not null unique,
+    canonical text not null,
+    payload jsonb not null,
+    user_id text,
+    created_at timestamptz not null default now(),
+    constraint audit_chain_hash_format_chk check (
+        prev_hash ~ '^[0-9a-f]{64}$' and entry_hash ~ '^[0-9a-f]{64}$'
+    ),
+    constraint audit_chain_not_self_linked_chk check (prev_hash <> entry_hash)
+);
+
+create index if not exists audit_chain_user_seq_idx on audit_chain (user_id, seq desc);
+
+alter table audit_chain enable row level security;
+
+drop policy if exists service_role_insert_audit_chain on audit_chain;
+create policy service_role_insert_audit_chain on audit_chain
+    for insert with check (auth.role() = 'service_role');
+
+drop policy if exists service_role_select_audit_chain on audit_chain;
+create policy service_role_select_audit_chain on audit_chain
+    for select using (auth.role() = 'service_role');
+
+create or replace function prevent_audit_chain_mutation()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+    raise exception 'audit_chain is append-only: % is not permitted', tg_op;
+end;
+$$;
+
+drop trigger if exists audit_chain_immutable on audit_chain;
+create trigger audit_chain_immutable
+before update or delete on audit_chain
+for each row execute function prevent_audit_chain_mutation();
+
+drop trigger if exists audit_chain_no_truncate on audit_chain;
+create trigger audit_chain_no_truncate
+before truncate on audit_chain
+for each statement execute function prevent_audit_chain_mutation();

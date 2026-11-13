@@ -30,6 +30,7 @@ jobs:
       - run: pip install -e ./backend[dev]
       - run: ruff check backend
       - run: pytest backend/app/tests
+      - run: python backend/scripts/verify_audit_chain.py --self-test
 
   # Supply-chain guard: fail the build on known vulnerabilities so new
   # CVEs surface here instead of in production.
