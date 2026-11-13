@@ -98,3 +98,35 @@ def _score_completeness(answer: str) -> float:
 def confidence_gate(score: float, threshold: float) -> bool:
     """Return True if score meets threshold (answer can be shown), False if HITL needed."""
     return score >= threshold
+
+
+# Cosine similarity of text-embedding-3-large for a genuinely relevant passage
+# typically lands around 0.4-0.6, not near 1.0, so raw similarity understates
+# retrieval quality. Dividing by this reference maps "good" retrieval to ~1.0.
+# UNCALIBRATED: tune against the golden dataset before trusting the threshold.
+SIMILARITY_REFERENCE = 0.5
+VERIFICATION_WEIGHT = 0.7
+RETRIEVAL_WEIGHT = 0.3
+
+
+def score_audit_confidence(
+    cited_similarities: list[float],
+    *,
+    supported: int,
+    partly_supported: int,
+    attempted: int,
+) -> float:
+    """Confidence for the audit-grade pipeline, in [0, 1].
+
+    Dominated by verification (70%): the share of the claims the model
+    *attempted* that survived the verifier, counting a partly supported claim
+    as half. Claims rejected for bad citations or dropped as unsupported count
+    against it, so a model that fabricates a lot scores low even if what is
+    left is clean. The remaining 30% is how strong the cited retrieval was.
+    """
+    if attempted <= 0 or not cited_similarities:
+        return 0.0
+    verification = (supported + 0.5 * partly_supported) / attempted
+    retrieval = min(1.0, (sum(cited_similarities) / len(cited_similarities)) / SIMILARITY_REFERENCE)
+    score = VERIFICATION_WEIGHT * verification + RETRIEVAL_WEIGHT * retrieval
+    return round(min(max(score, 0.0), 1.0), 4)
